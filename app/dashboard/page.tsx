@@ -272,7 +272,9 @@ export default function Dashboard() {
                 </h3>
                 {(() => {
                   const chartData = selectedDevice === 'PC' ? currentSegmentStats.pcSimulations : currentSegmentStats.moSimulations;
-                  const hasData = chartData && chartData.length > 0 && chartData.some(d => d.totalClicks > 0 || d.totalCost > 0);
+                  // PC의 경우 1-10위만 표시
+                  const displayChartData = selectedDevice === 'PC' ? chartData.slice(0, 10) : chartData;
+                  const hasData = displayChartData && displayChartData.length > 0 && displayChartData.some(d => d.totalClicks > 0 || d.totalCost > 0);
 
                   if (!hasData) {
                     return (
@@ -286,7 +288,7 @@ export default function Dashboard() {
                     <div className="flex justify-center">
                       <ResponsiveContainer width="100%" height={350}>
                         <BarChart
-                          data={chartData}
+                          data={displayChartData}
                           margin={{ top: 5, right: 30, left: 20, bottom: 20 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
@@ -349,6 +351,34 @@ export default function Dashboard() {
                     );
                   }
 
+                  // PC의 경우 1-10위만 표시
+                  const displayData = selectedDevice === 'PC' ? tableData.slice(0, 10) : tableData;
+
+                  // 1위를 제외하고 비용 변화율과 평균 CPC 변화율의 최대값(절대값 기준) 찾기
+                  const dataExcludingFirst = displayData.filter(d => d.rank > 1);
+
+                  let maxCostChangeRank = 0;
+                  let maxCostChangeValue = 0;
+                  let maxCPCChangeRank = 0;
+                  let maxCPCChangeValue = 0;
+
+                  dataExcludingFirst.forEach((sim: any) => {
+                    if (sim.costChangeRate !== undefined && sim.costChangeRate !== null) {
+                      const absValue = Math.abs(sim.costChangeRate);
+                      if (absValue > maxCostChangeValue) {
+                        maxCostChangeValue = absValue;
+                        maxCostChangeRank = sim.rank;
+                      }
+                    }
+                    if (sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null) {
+                      const absValue = Math.abs(sim.avgCPCChangeRate);
+                      if (absValue > maxCPCChangeValue) {
+                        maxCPCChangeValue = absValue;
+                        maxCPCChangeRank = sim.rank;
+                      }
+                    }
+                  });
+
                   return (
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
@@ -363,18 +393,23 @@ export default function Dashboard() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {tableData.map((sim: any) => {
-                            const isMaxChange = selectedDevice === 'PC'
-                              ? sim.rank === currentSegmentStats.maxChangeRankPc
-                              : sim.rank === currentSegmentStats.maxChangeRankMo;
+                          {displayData.map((sim: any) => {
+                            const isMaxCostChange = sim.rank === maxCostChangeRank;
+                            const isMaxCPCChange = sim.rank === maxCPCChangeRank;
+                            const shouldHighlight = isMaxCostChange || isMaxCPCChange;
+
                             return (
-                              <tr key={sim.rank} className={isMaxChange ? 'bg-yellow-50' : ''}>
+                              <tr key={sim.rank} className={shouldHighlight ? 'bg-yellow-50' : ''}>
                                 <td className="px-4 py-2 text-sm text-gray-900">{sim.rank}위</td>
                                 <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalClicks)}</td>
                                 <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.totalCost)}</td>
                                 <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.avgCPC)}</td>
-                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}</td>
-                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null ? formatPercent(sim.avgCPCChangeRate) : '-'}</td>
+                                <td className={cn("px-4 py-2 text-sm text-gray-900 text-right", isMaxCostChange && "font-bold")}>
+                                  {sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}
+                                </td>
+                                <td className={cn("px-4 py-2 text-sm text-gray-900 text-right", isMaxCPCChange && "font-bold")}>
+                                  {sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null ? formatPercent(sim.avgCPCChangeRate) : '-'}
+                                </td>
                               </tr>
                             );
                           })}
