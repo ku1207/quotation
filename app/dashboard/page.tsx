@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [aiReport, setAiReport] = useState<AIReport | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<Segment>('High-Volume');
   const [selectedDevice, setSelectedDevice] = useState<'PC' | 'MO'>('PC');
+  const [criteriaDevice, setCriteriaDevice] = useState<'PC' | 'MO'>('PC');
   const [openScenario, setOpenScenario] = useState<{ [k: string]: boolean }>({});
   const [loadingAI, setLoadingAI] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,10 +124,41 @@ export default function Dashboard() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-4">키워드 세그먼트</h2>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-blue-900">분류 기준</p>
+              <div className="inline-flex rounded-lg bg-blue-100 p-1">
+                <button
+                  onClick={() => setCriteriaDevice('PC')}
+                  className={cn(
+                    'px-3 py-1 rounded-md text-xs font-medium',
+                    criteriaDevice === 'PC' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-700'
+                  )}
+                >
+                  PC
+                </button>
+                <button
+                  onClick={() => setCriteriaDevice('MO')}
+                  className={cn(
+                    'px-3 py-1 rounded-md text-xs font-medium',
+                    criteriaDevice === 'MO' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-700'
+                  )}
+                >
+                  Mobile
+                </button>
+              </div>
+            </div>
             <p className="text-sm text-blue-900">
-              <strong>분류 기준 (중위값):</strong> 클릭수{' '}
-              {formatNumber(criteria.medianClicks)}회 / CPC{' '}
-              {formatCurrency(criteria.medianCPC)}
+              {criteriaDevice === 'PC' ? (
+                <>
+                  <strong>PC 1순위 평균 클릭수:</strong> {formatNumber(criteria.pcAvgClicks || 0)}회 /
+                  <strong className="ml-2">PC 1순위 평균 CPC:</strong> {formatCurrency(criteria.pcCPC || 0)}
+                </>
+              ) : (
+                <>
+                  <strong>Mobile 1순위 평균 클릭수:</strong> {formatNumber(criteria.moAvgClicks || 0)}회 /
+                  <strong className="ml-2">Mobile 1순위 평균 CPC:</strong> {formatCurrency(criteria.moCPC || 0)}
+                </>
+              )}
             </p>
           </div>
 
@@ -134,11 +166,11 @@ export default function Dashboard() {
             {segmentStats.map((stat) => (
               <div
                 key={stat.segment}
-                className="bg-white rounded-lg shadow p-6 border-l-4"
-                style={{ borderColor: getSegmentColor(stat.segment), height: '70%' }}
+                className="bg-white rounded-lg shadow p-4 border-l-4 flex flex-col"
+                style={{ borderColor: getSegmentColor(stat.segment) }}
               >
                 <div
-                  className="inline-block px-3 py-1 rounded-full text-sm font-medium mb-3"
+                  className="inline-block px-2 py-1 rounded-full text-xs font-medium mb-2 self-start"
                   style={{
                     backgroundColor: getSegmentBgColor(stat.segment),
                     color: getSegmentColor(stat.segment),
@@ -146,18 +178,17 @@ export default function Dashboard() {
                 >
                   {getSegmentLabel(stat.segment)}
                 </div>
-                <div className="space-y-2">
+                <div className="flex-1 space-y-2">
                   <div>
-                    <p className="text-sm text-gray-600">키워드 수</p>
-                    <p className="text-2xl font-bold text-gray-900">{stat.keywordCount}</p>
+                    <p className="text-xs text-gray-600">키워드 수</p>
+                    <p className="text-xl font-bold text-gray-900">{stat.keywordCount}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">예산 비중</p>
-                    <p className="text-lg font-semibold text-gray-900">
+                    <p className="text-xs text-gray-600">예산 비중</p>
+                    <p className="text-base font-semibold text-gray-900">
                       {formatPercent(stat.budgetRatio)}
                     </p>
                   </div>
-                  {/* '최대 변동 구간' 제거 as requested */}
                 </div>
               </div>
             ))}
@@ -234,103 +265,126 @@ export default function Dashboard() {
 
           {/* 그래프 */}
           {currentSegmentStats && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                순위별 클릭수 & 비용 변화
-              </h3>
-              <div className="flex justify-center">
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart
-                    data={selectedDevice === 'PC' ? currentSegmentStats.pcSimulations : currentSegmentStats.moSimulations}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="rank"
-                      label={{ value: '순위', position: 'insideBottom', offset: -5 }}
-                      style={{ fontSize: 12 }}
-                    />
-                    <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" style={{ fontSize: 12 }} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#10b981" style={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value: any) => formatNumber(value)}
-                      labelFormatter={(label) => `${label}위`}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    {selectedDevice === 'PC' ? (
-                      <>
-                        <Bar yAxisId="left" dataKey="totalClicks" fill="#2563eb" name="PC 클릭수" />
-                        <Bar yAxisId="right" dataKey="totalCost" fill="#059669" name="PC 비용" />
-                      </>
-                    ) : (
-                      <>
-                        <Bar yAxisId="left" dataKey="totalClicks" fill="#60a5fa" name="Mobile 클릭수" />
-                        <Bar yAxisId="right" dataKey="totalCost" fill="#34d399" name="Mobile 비용" />
-                      </>
-                    )}
-                  </BarChart>
-                </ResponsiveContainer>
+            <>
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  순위별 클릭수 & 비용 변화 ({selectedDevice === 'PC' ? 'PC' : 'Mobile'})
+                </h3>
+                {(() => {
+                  const chartData = selectedDevice === 'PC' ? currentSegmentStats.pcSimulations : currentSegmentStats.moSimulations;
+                  const hasData = chartData && chartData.length > 0 && chartData.some(d => d.totalClicks > 0 || d.totalCost > 0);
+
+                  if (!hasData) {
+                    return (
+                      <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
+                        <p className="text-sm text-gray-500">해당 세그먼트의 {selectedDevice === 'PC' ? 'PC' : 'Mobile'} 데이터가 없습니다.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="flex justify-center">
+                      <ResponsiveContainer width="100%" height={350}>
+                        <BarChart
+                          data={chartData}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="rank"
+                            label={{ value: '순위', position: 'insideBottom', offset: -10 }}
+                            style={{ fontSize: 12 }}
+                          />
+                          <YAxis
+                            yAxisId="left"
+                            orientation="left"
+                            stroke="#3b82f6"
+                            style={{ fontSize: 12 }}
+                            label={{ value: '클릭수', angle: -90, position: 'insideLeft' }}
+                          />
+                          <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            stroke="#10b981"
+                            style={{ fontSize: 12 }}
+                            label={{ value: '비용', angle: 90, position: 'insideRight' }}
+                          />
+                          <Tooltip
+                            formatter={(value: any) => formatNumber(value)}
+                            labelFormatter={(label) => `${label}위`}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          {selectedDevice === 'PC' ? (
+                            <>
+                              <Bar yAxisId="left" dataKey="totalClicks" fill="#2563eb" name="PC 클릭수" />
+                              <Bar yAxisId="right" dataKey="totalCost" fill="#059669" name="PC 비용" />
+                            </>
+                          ) : (
+                            <>
+                              <Bar yAxisId="left" dataKey="totalClicks" fill="#60a5fa" name="Mobile 클릭수" />
+                              <Bar yAxisId="right" dataKey="totalCost" fill="#34d399" name="Mobile 비용" />
+                            </>
+                          )}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  );
+                })()}
               </div>
 
-              {/* inline strategy scenarios removed as requested */}
-
-              {/* iCPC 테이블 */}
-              <div className="mt-6">
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                  순위별 변화표
+              {/* 순위별 변화표 */}
+              <div className="bg-white rounded-lg shadow p-6 mt-6">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                  순위별 변화표 ({selectedDevice === 'PC' ? 'PC' : 'Mobile'})
                 </h4>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">순위</th>
-                        {selectedDevice === 'PC' ? (
-                          <>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">PC 클릭수</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">PC 비용</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">PC 평균 CPC</th>
-                          </>
-                        ) : (
-                          <>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">MO 클릭수</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">MO 비용</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">MO 평균 CPC</th>
-                          </>
-                        )}
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{selectedDevice === 'PC' ? 'PC 비용 변화율' : 'MO 비용 변화율'}</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{selectedDevice === 'PC' ? 'PC 평균 CPC 변화율' : 'MO 평균 CPC 변화율'}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {(selectedDevice === 'PC' ? currentSegmentStats.pcSimulations : currentSegmentStats.moSimulations).map((sim: any) => {
-                        const isMaxChange = selectedDevice === 'PC'
-                          ? sim.rank === currentSegmentStats.maxChangeRankPc
-                          : sim.rank === currentSegmentStats.maxChangeRankMo;
-                        return (
-                          <tr key={sim.rank} className={isMaxChange ? 'bg-yellow-50' : ''}>
-                            <td className="px-4 py-2 text-sm text-gray-900">{sim.rank}위</td>
-                            {selectedDevice === 'PC' ? (
-                              <>
-                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.pcClicks || sim.totalClicks)}</td>
-                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.pcCost || sim.totalCost)}</td>
-                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.pcAvgCPC || sim.avgCPC)}</td>
-                              </>
-                            ) : (
-                              <>
-                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.moClicks || sim.totalClicks)}</td>
-                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.moCost || sim.totalCost)}</td>
-                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.moAvgCPC || sim.avgCPC)}</td>
-                              </>
-                            )}
-                            <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}</td>
-                            <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null ? formatPercent(sim.avgCPCChangeRate) : '-'}</td>
+                {(() => {
+                  const tableData = selectedDevice === 'PC' ? currentSegmentStats.pcSimulations : currentSegmentStats.moSimulations;
+                  const hasData = tableData && tableData.length > 0;
+
+                  if (!hasData) {
+                    return (
+                      <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg">
+                        <p className="text-sm text-gray-500">해당 세그먼트의 {selectedDevice === 'PC' ? 'PC' : 'Mobile'} 데이터가 없습니다.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">순위</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">클릭수</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용 변화율</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC 변화율</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {tableData.map((sim: any) => {
+                            const isMaxChange = selectedDevice === 'PC'
+                              ? sim.rank === currentSegmentStats.maxChangeRankPc
+                              : sim.rank === currentSegmentStats.maxChangeRankMo;
+                            return (
+                              <tr key={sim.rank} className={isMaxChange ? 'bg-yellow-50' : ''}>
+                                <td className="px-4 py-2 text-sm text-gray-900">{sim.rank}위</td>
+                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalClicks)}</td>
+                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.totalCost)}</td>
+                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.avgCPC)}</td>
+                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}</td>
+                                <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null ? formatPercent(sim.avgCPCChangeRate) : '-'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
-            </div>
+            </>
           )}
         </section>
 
