@@ -685,167 +685,204 @@ export default function Dashboard() {
                 </div>
 
                 {/* 순위별 변화표 */}
-                <div className="mt-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                <div className="mt-6 bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     순위별 변화표{reportTab !== 'All' ? ` (${reportTab === 'PC' ? 'PC' : 'Mobile'})` : ''}
-                  </h4>
-                  <div className="bg-white rounded-lg shadow overflow-hidden">
-                    {!hasData ? (
-                      <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg p-6">
-                        <p className="text-sm text-gray-500">해당 세그먼트의 {reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'} 데이터가 없습니다.</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">순위</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">노출수</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">클릭수</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC 변화율</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용 변화율</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {tableData.map((sim: any) => {
-                              const isMaxChange = selectedSegment !== 'All' && currentSegmentStats && (
-                                reportTab === 'MO'
-                                  ? sim.rank === currentSegmentStats.maxChangeRankMo
-                                  : sim.rank === currentSegmentStats.maxChangeRankPc
-                              );
-                              return (
-                                <tr key={sim.rank} className={isMaxChange ? 'bg-yellow-50' : ''}>
-                                  <td className="px-4 py-2 text-sm text-gray-900">{sim.rank}위</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalImpressions || 0)}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalClicks)}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.avgCPC)}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.totalCost)}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null ? formatPercent(sim.avgCPCChangeRate) : '-'}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+                  </h3>
+                  {!hasData ? (
+                    <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">해당 세그먼트의 {reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'} 데이터가 없습니다.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      {(() => {
+                        // 절대값 최대 변화율 찾기
+                        let maxAbsCPCChangeRank = -1;
+                        let maxAbsCostChangeRank = -1;
+                        let maxAbsCPCChange = 0;
+                        let maxAbsCostChange = 0;
+
+                        tableData.forEach((sim: any) => {
+                          if (sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null) {
+                            const absVal = Math.abs(sim.avgCPCChangeRate);
+                            if (absVal > maxAbsCPCChange) {
+                              maxAbsCPCChange = absVal;
+                              maxAbsCPCChangeRank = sim.rank;
+                            }
+                          }
+                          if (sim.costChangeRate !== undefined && sim.costChangeRate !== null) {
+                            const absVal = Math.abs(sim.costChangeRate);
+                            if (absVal > maxAbsCostChange) {
+                              maxAbsCostChange = absVal;
+                              maxAbsCostChangeRank = sim.rank;
+                            }
+                          }
+                        });
+
+                        // 동일한 행이면 하나만 음영 처리
+                        const shouldHighlight = (rank: number) => {
+                          if (maxAbsCPCChangeRank === maxAbsCostChangeRank && rank === maxAbsCPCChangeRank) {
+                            return true;
+                          }
+                          if (maxAbsCPCChangeRank !== maxAbsCostChangeRank) {
+                            return rank === maxAbsCPCChangeRank || rank === maxAbsCostChangeRank;
+                          }
+                          return false;
+                        };
+
+                        return (
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">순위</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">노출수</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">클릭수</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC 변화율</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용 변화율</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {tableData.map((sim: any) => {
+                                const isHighlighted = shouldHighlight(sim.rank);
+                                const isCPCMaxChange = sim.rank === maxAbsCPCChangeRank;
+                                const isCostMaxChange = sim.rank === maxAbsCostChangeRank;
+
+                                return (
+                                  <tr key={sim.rank} className={isHighlighted ? 'bg-yellow-50' : ''}>
+                                    <td className="px-4 py-2 text-sm text-gray-900">{sim.rank}위</td>
+                                    <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalImpressions || 0)}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalClicks)}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.avgCPC)}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.totalCost)}</td>
+                                    <td className={cn("px-4 py-2 text-sm text-gray-900 text-right", isCPCMaxChange && "font-bold")}>
+                                      {sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null ? formatPercent(sim.avgCPCChangeRate) : '-'}
+                                    </td>
+                                    <td className={cn("px-4 py-2 text-sm text-gray-900 text-right", isCostMaxChange && "font-bold")}>
+                                      {sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
 
                 {/* Top 10 광고비 키워드 */}
-                <div className="mt-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                <div className="mt-6 bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Top 10 광고비 키워드
-                  </h4>
-                  <div className="bg-white rounded-lg shadow overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                              순위
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                              키워드
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                              세그먼트
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                              1위 비용
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                              2위 비용
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                              3위 비용
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                              4위 비용
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                              5위 비용
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                              비용 배수
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {(() => {
-                            // 총합 계산
-                            let totalCost1 = 0, totalCost2 = 0, totalCost3 = 0, totalCost4 = 0, totalCost5 = 0;
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            순위
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            키워드
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            세그먼트
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            1위 비용
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            2위 비용
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            3위 비용
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            4위 비용
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            5위 비용
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                            비용 배수
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {(() => {
+                          // 총합 계산
+                          let totalCost1 = 0, totalCost2 = 0, totalCost3 = 0, totalCost4 = 0, totalCost5 = 0;
 
-                            const rows = displayTopKeywords.map((kw, idx) => {
-                              // show per-device Top5 (1~5) and cost multiple formula
-                              const cost1 = reportTab === 'MO' ? (kw.mo[1]?.cost || 0) : (kw.pc[1]?.cost || 0);
-                              const cost2 = reportTab === 'MO' ? (kw.mo[2]?.cost || 0) : (kw.pc[2]?.cost || 0);
-                              const cost3 = reportTab === 'MO' ? (kw.mo[3]?.cost || 0) : (kw.pc[3]?.cost || 0);
-                              const cost4 = reportTab === 'MO' ? (kw.mo[4]?.cost || 0) : (kw.pc[4]?.cost || 0);
-                              const cost5 = reportTab === 'MO' ? (kw.mo[5]?.cost || 0) : (kw.pc[5]?.cost || 0);
+                          const rows = displayTopKeywords.map((kw, idx) => {
+                            // show per-device Top5 (1~5) and cost multiple formula
+                            const cost1 = reportTab === 'MO' ? (kw.mo[1]?.cost || 0) : (kw.pc[1]?.cost || 0);
+                            const cost2 = reportTab === 'MO' ? (kw.mo[2]?.cost || 0) : (kw.pc[2]?.cost || 0);
+                            const cost3 = reportTab === 'MO' ? (kw.mo[3]?.cost || 0) : (kw.pc[3]?.cost || 0);
+                            const cost4 = reportTab === 'MO' ? (kw.mo[4]?.cost || 0) : (kw.pc[4]?.cost || 0);
+                            const cost5 = reportTab === 'MO' ? (kw.mo[5]?.cost || 0) : (kw.pc[5]?.cost || 0);
 
-                              totalCost1 += cost1;
-                              totalCost2 += cost2;
-                              totalCost3 += cost3;
-                              totalCost4 += cost4;
-                              totalCost5 += cost5;
+                            totalCost1 += cost1;
+                            totalCost2 += cost2;
+                            totalCost3 += cost3;
+                            totalCost4 += cost4;
+                            totalCost5 += cost5;
 
-                              const costMultiple = cost5 > 0 ? cost1 / cost5 : 0;
-                              const isHighCompetition = costMultiple > 3;
-
-                              return (
-                                <tr key={idx} className={cn(isHighCompetition && 'bg-red-50')}>
-                                  <td className="px-6 py-4 text-sm text-gray-900">{idx + 1}</td>
-                                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{kw.keyword}</td>
-                                  <td className="px-6 py-4 text-sm">
-                                    {(() => {
-                                      const seg = reportTab === 'MO' ? (kw.segmentMo || kw.segment) : (kw.segmentPc || kw.segment);
-                                      return (
-                                        <span className="inline-block px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: getSegmentBgColor(seg), color: getSegmentColor(seg) }}>{getSegmentLabel(seg)}</span>
-                                      );
-                                    })()}
-                                  </td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost1)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost2)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost3)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost4)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost5)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-semibold">
-                                    {costMultiple > 0 ? `${costMultiple.toFixed(1)}x` : '-'}
-                                    {isHighCompetition && <AlertCircle className="inline-block w-4 h-4 ml-1 text-red-600" />}
-                                  </td>
-                                </tr>
-                              );
-                            });
-
-                            const totalMultiple = totalCost5 > 0 ? totalCost1 / totalCost5 : 0;
+                            const costMultiple = cost5 > 0 ? cost1 / cost5 : 0;
+                            const isHighCompetition = costMultiple > 3;
 
                             return (
-                              <>
-                                <tr className="bg-blue-50 font-semibold">
-                                  <td className="px-6 py-4 text-sm text-gray-900">-</td>
-                                  <td className="px-6 py-4 text-sm font-bold text-gray-900">총합</td>
-                                  <td className="px-6 py-4 text-sm">-</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost1)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost2)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost3)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost4)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost5)}</td>
-                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">
-                                    {totalMultiple > 0 ? `${totalMultiple.toFixed(1)}x` : '-'}
-                                  </td>
-                                </tr>
-                                {rows}
-                              </>
+                              <tr key={idx} className={cn(isHighCompetition && 'bg-red-50')}>
+                                <td className="px-6 py-4 text-sm text-gray-900">{idx + 1}</td>
+                                <td className="px-6 py-4 text-sm font-medium text-gray-900">{kw.keyword}</td>
+                                <td className="px-6 py-4 text-sm">
+                                  {(() => {
+                                    const seg = reportTab === 'MO' ? (kw.segmentMo || kw.segment) : (kw.segmentPc || kw.segment);
+                                    return (
+                                      <span className="inline-block px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: getSegmentBgColor(seg), color: getSegmentColor(seg) }}>{getSegmentLabel(seg)}</span>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost1)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost2)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost3)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost4)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost5)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right font-semibold">
+                                  {costMultiple > 0 ? `${costMultiple.toFixed(1)}x` : '-'}
+                                  {isHighCompetition && <AlertCircle className="inline-block w-4 h-4 ml-1 text-red-600" />}
+                                </td>
+                              </tr>
                             );
-                          })()}
-                        </tbody>
-                      </table>
-                    </div>
+                          });
+
+                          const totalMultiple = totalCost5 > 0 ? totalCost1 / totalCost5 : 0;
+
+                          return (
+                            <>
+                              <tr className="bg-blue-50 font-semibold">
+                                <td className="px-6 py-4 text-sm text-gray-900">-</td>
+                                <td className="px-6 py-4 text-sm font-bold text-gray-900">총합</td>
+                                <td className="px-6 py-4 text-sm">-</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost1)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost2)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost3)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost4)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost5)}</td>
+                                <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">
+                                  {totalMultiple > 0 ? `${totalMultiple.toFixed(1)}x` : '-'}
+                                </td>
+                              </tr>
+                              {rows}
+                            </>
+                          );
+                        })()}
+                      </tbody>
+                    </table>
                   </div>
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-4 text-sm text-gray-600">
                     비용 배수는 선택된 디바이스의 1위 비용을 5위 비용으로 나눈 값입니다. (비용 배수 = 1위 / 5위)
                   </p>
                   <p className="mt-2 text-sm text-gray-600">

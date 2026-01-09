@@ -9,12 +9,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * 숫자를 한국 원화 형식으로 포맷 (예: 1,234,567원)
+ * 숫자를 한국 원화 형식으로 포맷 (예: 1,234,567)
  */
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('ko-KR', {
-    style: 'currency',
-    currency: 'KRW',
+    style: 'decimal',
     maximumFractionDigits: 0,
   }).format(value);
 }
