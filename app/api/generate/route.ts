@@ -55,24 +55,44 @@ function buildPrompt(analysis: AnalysisResult): string {
 }
 
 function parseAIResponse(response: string): AIReport {
+  const defaultReport: AIReport = {
+    segmentInsights: {
+      'High-Volume': '고성과 세그먼트입니다.',
+      'Efficiency': '효율 세그먼트입니다.',
+      'Long-tail': '롱테일 세그먼트입니다.',
+      'High-Cost': '고비용 세그먼트입니다.',
+    },
+    strategies: {
+      aggressive: { background: '공격적 전략 배경', execution: '집중 실행 방안', expectedKPI: '예상 KPI' },
+      efficiency: { background: '효율 전략 배경', execution: '효율 실행 방안', expectedKPI: '예상 KPI' },
+      defensive: { background: '수비 전략 배경', execution: '수비 실행 방안', expectedKPI: '예상 KPI' },
+    },
+  };
+
   try {
+    // 빈 응답 체크
+    if (!response || response.trim() === '') {
+      console.error('AI 응답이 비어있습니다.');
+      return defaultReport;
+    }
+
+    // JSON 코드 블록 추출 시도
     const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/i);
-    const jsonString = jsonMatch ? jsonMatch[1] : response;
+    let jsonString = jsonMatch ? jsonMatch[1].trim() : response.trim();
+
+    // JSON 문자열이 비어있는지 체크
+    if (!jsonString) {
+      console.error('추출된 JSON 문자열이 비어있습니다.');
+      return defaultReport;
+    }
+
     const parsed = JSON.parse(jsonString);
 
-    const defaultReport: AIReport = {
-      segmentInsights: {
-        'High-Volume': '고성과 세그먼트입니다.',
-        'Efficiency': '효율 세그먼트입니다.',
-        'Long-tail': '롱테일 세그먼트입니다.',
-        'High-Cost': '고비용 세그먼트입니다.',
-      },
-      strategies: {
-        aggressive: { background: '공격적 전략 배경', execution: '집중 실행 방안', expectedKPI: '예상 KPI' },
-        efficiency: { background: '효율 전략 배경', execution: '효율 실행 방안', expectedKPI: '예상 KPI' },
-        defensive: { background: '수비 전략 배경', execution: '수비 실행 방안', expectedKPI: '예상 KPI' },
-      },
-    };
+    // 파싱된 객체 유효성 검증
+    if (!parsed || typeof parsed !== 'object') {
+      console.error('파싱된 결과가 유효하지 않습니다.');
+      return defaultReport;
+    }
 
     return {
       segmentInsights: {
@@ -101,18 +121,7 @@ function parseAIResponse(response: string): AIReport {
     };
   } catch (err) {
     console.error('AI 응답 파싱 오류:', err);
-    return {
-      segmentInsights: {
-        'High-Volume': '고성과 세그먼트입니다.',
-        Efficiency: '효율 세그먼트입니다.',
-        'Long-tail': '롱테일 세그먼트입니다.',
-        'High-Cost': '고비용 세그먼트입니다.',
-      },
-      strategies: {
-        aggressive: { background: '공격적 전략 배경', execution: '집중 실행 방안', expectedKPI: '예상 KPI' },
-        efficiency: { background: '효율 전략 배경', execution: '효율 실행 방안', expectedKPI: '예상 KPI' },
-        defensive: { background: '수비 전략 배경', execution: '수비 실행 방안', expectedKPI: '예상 KPI' },
-      },
-    };
+    console.error('원본 응답:', response);
+    return defaultReport;
   }
 }
