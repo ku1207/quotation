@@ -194,17 +194,15 @@ export function classifySegments(keywords: KeywordData[]): {
   // 또한 PC / MO를 분리하여 디바이스별 세그먼트를 생성
 
   // PC 1위 집계
-  const pcClicksArr = keywords.map((k) => k.pc[1]?.clicks || 0);
-  const pcTotalClicks = pcClicksArr.reduce((a, b) => a + b, 0);
-  const pcAvgClicks = pcClicksArr.length > 0 ? pcTotalClicks / pcClicksArr.length : 0;
-  const pcTotalCost = keywords.reduce((acc, k) => acc + (k.pc[1]?.cost || 0), 0);
+  const pcTotalClicks = keywords.reduce((sum, k) => sum + k.pcClicks, 0);
+  const pcTotalCost = keywords.reduce((sum, k) => sum + k.pcCost, 0);
+  const pcAvgClicks = keywords.length > 0 ? pcTotalClicks / keywords.length : 0;
   const pcCPC = pcTotalClicks > 0 ? Math.floor(pcTotalCost / pcTotalClicks) : 0;
 
   // MO 1위 집계
-  const moClicksArr = keywords.map((k) => k.mo[1]?.clicks || 0);
-  const moTotalClicks = moClicksArr.reduce((a, b) => a + b, 0);
-  const moAvgClicks = moClicksArr.length > 0 ? moTotalClicks / moClicksArr.length : 0;
-  const moTotalCost = keywords.reduce((acc, k) => acc + (k.mo[1]?.cost || 0), 0);
+  const moTotalClicks = keywords.reduce((sum, k) => sum + k.moClicks, 0);
+  const moTotalCost = keywords.reduce((sum, k) => sum + k.moCost, 0);
+  const moAvgClicks = keywords.length > 0 ? moTotalClicks / keywords.length : 0;
   const moCPC = moTotalClicks > 0 ? Math.floor(moTotalCost / moTotalClicks) : 0;
 
   // 기존 합산(하위호환) 기준: PC1 + MO1 기반 평균/비교(기존 로직 유지)
