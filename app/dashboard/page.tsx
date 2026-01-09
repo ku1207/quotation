@@ -181,7 +181,7 @@ export default function Dashboard() {
     ? undefined
     : orderedFilteredStats.find((s) => s.segment === selectedSegment);
 
-  // Top 10 키워드를 디바이스별로 정렬
+  // Top 10 키워드를 디바이스별로 정렬 (세그먼트 필터링 시 10개 미만도 허용)
   const getTopKeywords = () => {
     let list = [...keywords];
     if (selectedSegment !== 'All') {
@@ -202,7 +202,8 @@ export default function Dashboard() {
       }
     });
 
-    return sorted.slice(0, 10);
+    // Return up to 10 keywords, or fewer if segment has less
+    return sorted.slice(0, Math.min(10, sorted.length));
   };
 
   const displayTopKeywords = getTopKeywords();
@@ -601,7 +602,7 @@ export default function Dashboard() {
 
             return (
               <>
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="mt-8 bg-white rounded-lg shadow p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     순위별 클릭수 & 비용 변화{reportTab !== 'All' ? ` (${reportTab === 'PC' ? 'PC' : 'Mobile'})` : ''}
                   </h3>
