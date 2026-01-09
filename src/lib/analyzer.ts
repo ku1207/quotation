@@ -174,7 +174,11 @@ function getColumnValue(
   if (colIndex === undefined) return 0;
 
   const value = row[colIndex];
-  return typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+  if (typeof value === 'number') return value;
+  if (value === undefined || value === null) return 0;
+  const cleaned = String(value).replace(/[,\s]+/g, '');
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**
@@ -192,14 +196,16 @@ export function classifySegments(keywords: KeywordData[]): {
   // PC 1위 집계
   const pcClicksArr = keywords.map((k) => k.pc[1]?.clicks || 0);
   const pcTotalClicks = pcClicksArr.reduce((a, b) => a + b, 0);
-  const pcAvgClicks = pcClicksArr.length > 0 ? pcTotalClicks / pcClicksArr.length : 0;
+  const pcNonZeroCount = pcClicksArr.filter(v => v > 0).length;
+  const pcAvgClicks = pcNonZeroCount > 0 ? pcTotalClicks / pcNonZeroCount : 0;
   const pcTotalCost = keywords.reduce((acc, k) => acc + (k.pc[1]?.cost || 0), 0);
   const pcCPC = pcTotalClicks > 0 ? Math.floor(pcTotalCost / pcTotalClicks) : 0;
 
   // MO 1위 집계
   const moClicksArr = keywords.map((k) => k.mo[1]?.clicks || 0);
   const moTotalClicks = moClicksArr.reduce((a, b) => a + b, 0);
-  const moAvgClicks = moClicksArr.length > 0 ? moTotalClicks / moClicksArr.length : 0;
+  const moNonZeroCount = moClicksArr.filter(v => v > 0).length;
+  const moAvgClicks = moNonZeroCount > 0 ? moTotalClicks / moNonZeroCount : 0;
   const moTotalCost = keywords.reduce((acc, k) => acc + (k.mo[1]?.cost || 0), 0);
   const moCPC = moTotalClicks > 0 ? Math.floor(moTotalCost / moTotalClicks) : 0;
 

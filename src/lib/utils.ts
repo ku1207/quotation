@@ -77,7 +77,7 @@ export function getSegmentLabel(segment: string): string {
   const labels: Record<string, string> = {
     'High-Volume': '고 클릭&CPC',
     'Efficiency': '고 클릭&저 CPC',
-    'Long-tail': '저 클릭&저 CPC',
+    'Long-tail': '저 클릭&CPC',
     'High-Cost': '저 클릭&고 CPC',
   };
   return labels[segment] || segment;
