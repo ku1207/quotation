@@ -41,7 +41,7 @@ export default function Dashboard() {
   const [aiReport, setAiReport] = useState<AIReport | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<Segment | 'All'>('All');
   const [reportTab, setReportTab] = useState<'All' | 'PC' | 'MO'>('All');
-  const [expandedCards, setExpandedCards] = useState<Set<Segment | 'All'>>(new Set());
+  const [hoveredSegment, setHoveredSegment] = useState<Segment | 'All' | null>(null);
   const [openScenario, setOpenScenario] = useState<{ [k: string]: boolean }>({});
   const [loadingAI, setLoadingAI] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,17 +101,7 @@ export default function Dashboard() {
     }
   };
 
-  const toggleCardExpansion = (segment: Segment) => {
-    setExpandedCards(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(segment)) {
-        newSet.delete(segment);
-      } else {
-        newSet.add(segment);
-      }
-      return newSet;
-    });
-  };
+  // Card selection is handled via `selectedSegment` (cards act as buttons)
 
   const getFilteredSegmentStats = () => {
     if (!analysisResult) return [];
@@ -193,7 +183,16 @@ export default function Dashboard() {
 
   // Top 10 키워드를 디바이스별로 정렬
   const getTopKeywords = () => {
-    const sorted = [...keywords].sort((a, b) => {
+    let list = [...keywords];
+    if (selectedSegment !== 'All') {
+      list = list.filter((kw) => {
+        if (reportTab === 'PC') return (kw.segmentPc || kw.segment) === selectedSegment;
+        if (reportTab === 'MO') return (kw.segmentMo || kw.segment) === selectedSegment;
+        return kw.segment === selectedSegment;
+      });
+    }
+
+    const sorted = list.sort((a, b) => {
       if (reportTab === 'PC') {
         return b.pcCost - a.pcCost;
       } else if (reportTab === 'MO') {
@@ -202,6 +201,7 @@ export default function Dashboard() {
         return b.totalCost - a.totalCost;
       }
     });
+
     return sorted.slice(0, 10);
   };
 
@@ -401,6 +401,23 @@ export default function Dashboard() {
               <div className="text-sm text-blue-900">
                 <strong>PC 1순위 평균 클릭수:</strong> {formatNumber(criteria.pcAvgClicks || 0)}회<br/>
                 <strong>PC 1순위 평균 CPC:</strong> {formatCurrency(criteria.pcCPC || 0)}
+                <div className="mt-2 text-xs text-gray-700">
+                  {/* 계산식 상세: 재계산해 표시 (합계, 분자/분모) */}
+                  {(() => {
+                    const pcTotalClicks = keywords.reduce((s, k) => s + (k.pc[1]?.clicks || 0), 0);
+                    const pcTotalCost = keywords.reduce((s, k) => s + (k.pc[1]?.cost || 0), 0);
+                    const pcAvgClicksCalc = keywords.length > 0 ? pcTotalClicks / keywords.length : 0;
+                    const pcCPCalc = pcTotalClicks > 0 ? Math.floor(pcTotalCost / pcTotalClicks) : 0;
+                    return (
+                      <div>
+                        <div>계산식: PC 총 1위 클릭수 = {formatNumber(pcTotalClicks)} (1위 클릭수의 합)</div>
+                        <div>키워드 수 = {keywords.length}</div>
+                        <div>평균 클릭수 = PC 총 1위 클릭수 / 키워드 수 = {formatNumber(pcTotalClicks)} / {keywords.length} = {formatNumber(pcAvgClicksCalc, 1)}회</div>
+                        <div className="mt-1">PC 1위 평균 CPC = 총 1위 비용 / 총 1위 클릭수 = {formatCurrency(pcTotalCost)} / {formatNumber(pcTotalClicks)} = {formatCurrency(pcCPCalc)}</div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
               <div className="text-sm text-blue-900">
                 <strong>Mobile 1순위 평균 클릭수:</strong> {formatNumber(criteria.moAvgClicks || 0)}회<br/>
@@ -412,29 +429,20 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {/* 전체 카드 */}
             {(() => {
-              const isExpanded = expandedCards.has('All');
               const totalKeywordCount = keywords.length;
-              const totalBudgetRatio = 100;
+              const totalBudgetRatio = 1; // fraction (100% == 1)
 
               return (
-                <div
-                  key="All"
-                  className="bg-white rounded-lg shadow border-l-4 overflow-hidden"
-                  style={{ borderColor: '#6b7280' }}
-                >
+                <div key="All" className={cn('rounded-lg overflow-hidden', 'shadow', 'bg-white')}>
                   <button
-                    onClick={() => {
-                      setExpandedCards(prev => {
-                        const newSet = new Set(prev);
-                        if (newSet.has('All')) {
-                          newSet.delete('All');
-                        } else {
-                          newSet.add('All');
-                        }
-                        return newSet;
-                      });
-                    }}
-                    className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+                    onClick={() => setSelectedSegment('All')}
+                    onMouseEnter={() => setHoveredSegment('All')}
+                    onMouseLeave={() => setHoveredSegment(null)}
+                    className={cn(
+                      'w-full p-4 text-left transition-colors',
+                      selectedSegment === 'All' ? 'ring-2 ring-offset-1 ring-blue-300' : ''
+                    )}
+                    style={hoveredSegment === 'All' ? { backgroundColor: '#f3f4f6' } : undefined}
                   >
                     <div
                       className="inline-block px-2 py-1 rounded-full text-xs font-medium mb-3"
@@ -457,34 +465,16 @@ export default function Dashboard() {
                         </p>
                       </div>
                       <div className="flex-shrink-0">
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-gray-400" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
-                        )}
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
                       </div>
                     </div>
                   </button>
-
-                  {isExpanded && (
-                    <div className="border-t border-gray-200 bg-gray-50 p-4 max-h-60 overflow-y-auto">
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2">키워드 목록</h4>
-                      <ul className="space-y-1">
-                        {keywords.map((kw, idx) => (
-                          <li key={idx} className="text-sm text-gray-600">
-                            • {kw.keyword}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                 </div>
               );
             })()}
 
             {/* 세그먼트별 카드 */}
             {orderedFilteredStats.map((stat) => {
-              const isExpanded = expandedCards.has(stat.segment);
               const segmentKeywords = keywords.filter(kw => {
                 if (reportTab === 'All') return kw.segment === stat.segment;
                 const deviceField = reportTab === 'PC' ? 'segmentPc' : 'segmentMo';
@@ -492,14 +482,22 @@ export default function Dashboard() {
               });
 
               return (
-                <div
-                  key={stat.segment}
-                  className="bg-white rounded-lg shadow border-l-4 overflow-hidden"
-                  style={{ borderColor: getSegmentColor(stat.segment) }}
-                >
+                <div key={stat.segment} className={cn('rounded-lg overflow-hidden', 'shadow', 'bg-white')}>
                   <button
-                    onClick={() => toggleCardExpansion(stat.segment)}
-                    className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+                    onClick={() => setSelectedSegment(stat.segment)}
+                    onMouseEnter={() => setHoveredSegment(stat.segment)}
+                    onMouseLeave={() => setHoveredSegment(null)}
+                    className={cn(
+                      'w-full p-4 text-left transition-colors',
+                      selectedSegment === stat.segment ? 'ring-2 ring-offset-1' : ''
+                    )}
+                    style={
+                      hoveredSegment === stat.segment
+                        ? { backgroundColor: getSegmentBgColor(stat.segment) }
+                        : selectedSegment === stat.segment
+                        ? { boxShadow: `0 0 0 3px ${getSegmentBgColor(stat.segment)}` }
+                        : undefined
+                    }
                   >
                     <div
                       className="inline-block px-2 py-1 rounded-full text-xs font-medium mb-3"
@@ -521,91 +519,29 @@ export default function Dashboard() {
                           {formatPercent(stat.budgetRatio)}
                         </p>
                       </div>
-                      <div className="flex-shrink-0">
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-gray-400" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
-                        )}
-                      </div>
+                      {/* arrow removed per design */}
                     </div>
                   </button>
-
-                  {isExpanded && (
-                    <div className="border-t border-gray-200 bg-gray-50 p-4 max-h-60 overflow-y-auto">
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2">키워드 목록</h4>
-                      <ul className="space-y-1">
-                        {segmentKeywords.map((kw, idx) => (
-                          <li key={idx} className="text-sm text-gray-600">
-                            • {kw.keyword}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
-        </section>
 
-        {!hasParsedData && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-yellow-800">
-              엑셀 파일이 정상적으로 파싱되지 않았습니다. 업로드 페이지로 이동하여 파일을 다시 업로드해주세요.
-            </p>
-            <div className="mt-2">
-              <button
-                onClick={() => router.push('/')}
-                className="text-sm text-blue-700 underline"
-              >
-                업로드 페이지로 이동
-              </button>
+          {!hasParsedData && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 mt-6">
+              <p className="text-sm text-yellow-800">
+                엑셀 파일이 정상적으로 파싱되지 않았습니다. 업로드 페이지로 이동하여 파일을 다시 업로드해주세요.
+              </p>
+              <div className="mt-2">
+                <button
+                  onClick={() => router.push('/')}
+                  className="text-sm text-blue-700 underline"
+                >
+                  업로드 페이지로 이동
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* 섹션 3: 세그먼트별 상세 분석 */}
-        <section>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">세그먼트별 상세 분석</h2>
-
-          {/* 탭 */}
-          <div className="flex space-x-2 mb-4 overflow-x-auto">
-            {/* 전체 탭 */}
-            <button
-              onClick={() => setSelectedSegment('All')}
-              className={cn(
-                'px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap',
-                selectedSegment === 'All'
-                  ? 'bg-gray-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              )}
-            >
-              전체
-            </button>
-
-            {/* 세그먼트별 탭 */}
-            {orderedFilteredStats.map((stat) => (
-              <button
-                key={stat.segment}
-                onClick={() => setSelectedSegment(stat.segment)}
-                className={cn(
-                  'px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap',
-                  selectedSegment === stat.segment
-                    ? 'text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                )}
-                style={{
-                  backgroundColor:
-                    selectedSegment === stat.segment
-                      ? getSegmentColor(stat.segment)
-                      : undefined,
-                }}
-              >
-                {getSegmentLabel(stat.segment)}
-              </button>
-            ))}
-          </div>
+          )}
 
           {/* 그래프 */}
           {(() => {

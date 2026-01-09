@@ -369,7 +369,8 @@ export function calculateSegmentStats(keywords: KeywordData[]): SegmentStats[] {
     return {
       segment,
       keywordCount: segmentKeywords.length,
-      budgetRatio: totalBudget > 0 ? (segmentBudget / totalBudget) * 100 : 0,
+      // budgetRatio: fraction (0-1) to be formatted by utils.formatPercent
+      budgetRatio: totalBudget > 0 ? (segmentBudget / totalBudget) : 0,
       simulations,
       pcSimulations,
       moSimulations,

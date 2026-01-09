@@ -33,7 +33,10 @@ export function formatNumber(value: number, decimals: number = 0): string {
  * 퍼센트 형식으로 포맷
  */
 export function formatPercent(value: number, decimals: number = 1): string {
-  return `${formatNumber(value, decimals)}%`;
+  // Accept both ratios (0.12) and already-percent values (12).
+  if (!isFinite(value)) value = 0;
+  const normalized = Math.abs(value) > 1.5 ? value : value * 100;
+  return `${formatNumber(normalized, decimals)}%`;
 }
 
 /**
