@@ -629,15 +629,15 @@ export default function Dashboard() {
                             orientation="left"
                             stroke="#3b82f6"
                             style={{ fontSize: 11 }}
-                            label={{ value: '클릭수', angle: -90, position: 'insideLeft', offset: 10 }}
+                            label={{ value: '클릭수 / 비용', angle: -90, position: 'insideLeft', offset: 10 }}
                             tick={{ dx: -5 }}
                           />
                           <YAxis
                             yAxisId="right"
                             orientation="right"
-                            stroke="#10b981"
+                            stroke="#f59e0b"
                             style={{ fontSize: 11 }}
-                            label={{ value: '비용', angle: 90, position: 'insideRight', offset: 10 }}
+                            label={{ value: 'CPC', angle: 90, position: 'insideRight', offset: 10 }}
                             tick={{ dx: 5 }}
                           />
                           <Tooltip
@@ -651,27 +651,29 @@ export default function Dashboard() {
                           />
                           {reportTab === 'MO' ? (
                             <>
+                              <Bar yAxisId="left" dataKey="totalClicks" fill="#3b82f6" name="Mobile 클릭수" />
+                              <Bar yAxisId="left" dataKey="totalCost" fill="#10b981" name="Mobile 비용" />
                               <Line
-                                yAxisId="left"
-                                dataKey="totalClicks"
-                                stroke="#3b82f6"
+                                yAxisId="right"
+                                dataKey="avgCPC"
+                                stroke="#f59e0b"
                                 strokeWidth={2}
-                                dot={{ fill: '#3b82f6', r: 4 }}
-                                name="Mobile 클릭수"
+                                dot={{ fill: '#f59e0b', r: 4 }}
+                                name="Mobile CPC"
                               />
-                              <Bar yAxisId="right" dataKey="totalCost" fill="#34d399" name="Mobile 비용" />
                             </>
                           ) : (
                             <>
+                              <Bar yAxisId="left" dataKey="totalClicks" fill="#2563eb" name="PC 클릭수" />
+                              <Bar yAxisId="left" dataKey="totalCost" fill="#059669" name="PC 비용" />
                               <Line
-                                yAxisId="left"
-                                dataKey="totalClicks"
-                                stroke="#2563eb"
+                                yAxisId="right"
+                                dataKey="avgCPC"
+                                stroke="#f59e0b"
                                 strokeWidth={2}
-                                dot={{ fill: '#2563eb', r: 4 }}
-                                name="PC 클릭수"
+                                dot={{ fill: '#f59e0b', r: 4 }}
+                                name="PC CPC"
                               />
-                              <Bar yAxisId="right" dataKey="totalCost" fill="#059669" name="PC 비용" />
                             </>
                           )}
                         </ComposedChart>
@@ -858,6 +860,7 @@ export default function Dashboard() {
 
                           return (
                             <>
+                              {rows}
                               <tr className="bg-blue-50 font-semibold">
                                 <td className="px-6 py-4 text-sm text-gray-900">-</td>
                                 <td className="px-6 py-4 text-sm font-bold text-gray-900">총합</td>
@@ -871,7 +874,6 @@ export default function Dashboard() {
                                   {totalMultiple > 0 ? `${totalMultiple.toFixed(1)}x` : '-'}
                                 </td>
                               </tr>
-                              {rows}
                             </>
                           );
                         })()}

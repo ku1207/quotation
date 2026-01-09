@@ -85,19 +85,21 @@ function buildColumnMap(header1: any[], header2: any[]): Map<string, number> {
     if (!deviceType || rank === null) continue;
 
     // Map Korean metric names to internal metric keys
-    // Order matters: check more specific patterns first
+    // CRITICAL: Skip rate/percentage columns first (클릭율, CTR, etc.)
     let metricType = '';
     const m = metricText.replace(/\s+/g, '').toLowerCase();
 
-    // Check most specific patterns first to avoid false matches
+    // Skip rate/percentage metrics that contain '율'
+    if (m.includes('율') || m.includes('률') || m.includes('ctr')) {
+      continue; // Skip CTR, click rate, and other rate metrics
+    }
+
+    // Check specific patterns - order matters to avoid false matches
     if (m.includes('예상노출수') || m.includes('노출수')) metricType = 'impressions';
     else if (m.includes('예상클릭수') || m.includes('클릭수')) metricType = 'clicks';
     else if (m.includes('예상광고비용') || m.includes('광고비용') || m.includes('예상비용')) metricType = 'cost';
     else if (m.includes('예상cpc') || m.includes('cpc')) metricType = 'cpc';
-    // Fallback to broader patterns if specific ones don't match
-    else if (m.includes('노출')) metricType = 'impressions';
-    else if (m.includes('클릭')) metricType = 'clicks';
-    else if (m.includes('비용')) metricType = 'cost';
+    // Fallback patterns removed to prevent false matches
 
     if (deviceType && metricType) {
       const key = `${deviceType}_${rank}_${metricType}`;
