@@ -450,6 +450,8 @@ export async function analyzeData(file: ArrayBuffer): Promise<AnalysisResult> {
 
   const segmentStats = calculateSegmentStats(keywords);
 
+  // Top 10은 리포트 탭(All/PC/MO)에 따라 동적으로 결정되므로
+  // 여기서는 전체 totalCost 기준으로 정렬 (UI에서 재정렬 가능)
   const topKeywords = [...keywords]
     .sort((a, b) => b.totalCost - a.totalCost)
     .slice(0, 10);
