@@ -31,19 +31,36 @@ export default function Home() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/upload', {
+      // 1단계: 파일 업로드 및 분석
+      const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
 
-      const result = await response.json();
+      const uploadResult = await uploadResponse.json();
 
-      if (!response.ok) {
-        throw new Error(result.error || '파일 업로드에 실패했습니다.');
+      if (!uploadResponse.ok) {
+        throw new Error(uploadResult.error || '파일 업로드에 실패했습니다.');
       }
 
-      // 분석 결과를 localStorage에 저장
-      localStorage.setItem('analysisResult', JSON.stringify(result.data));
+      // 2단계: AI 전략 시나리오 생성
+      const generateResponse = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ analysisResult: uploadResult.data }),
+      });
+
+      const generateResult = await generateResponse.json();
+
+      if (!generateResponse.ok) {
+        throw new Error(generateResult.error || 'AI 리포트 생성에 실패했습니다.');
+      }
+
+      // 분석 결과와 AI 리포트를 localStorage에 저장
+      localStorage.setItem('analysisResult', JSON.stringify(uploadResult.data));
+      localStorage.setItem('aiReport', JSON.stringify(generateResult.report));
 
       // 대시보드로 이동
       router.push('/dashboard');
