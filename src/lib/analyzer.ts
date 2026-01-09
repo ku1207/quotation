@@ -69,7 +69,7 @@ function buildColumnMap(header1: any[], header2: any[]): Map<string, number> {
 
     // Determine device type from deviceText
     let deviceType = '';
-    if (deviceText.includes('pc') || deviceText.includes('pc')) deviceType = 'PC';
+    if (deviceText.includes('pc')) deviceType = 'PC';
     else if (deviceText.includes('mo') || deviceText.includes('mobile') || deviceText.includes('모바일')) deviceType = 'MO';
 
     // Extract rank from deviceText (e.g., "1순위", "1위") or fallback to header2
@@ -86,7 +86,7 @@ function buildColumnMap(header1: any[], header2: any[]): Map<string, number> {
 
     // Map Korean metric names to internal metric keys
     let metricType = '';
-    const m = metricText.replace(/\s+/g, '');
+    const m = metricText.replace(/\s+/g, '').toLowerCase();
     if (m.includes('예상클릭수') || m.includes('클릭수') || m.includes('클릭')) metricType = 'clicks';
     else if (m.includes('예상광고비용') || m.includes('광고비용') || m.includes('비용')) metricType = 'cost';
     else if (m.includes('예상cpc') || m.includes('cpc')) metricType = 'cpc';

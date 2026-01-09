@@ -40,7 +40,6 @@ export default function Dashboard() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [aiReport, setAiReport] = useState<AIReport | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<Segment>('High-Volume');
-  const [criteriaDevice, setCriteriaDevice] = useState<'PC' | 'MO'>('PC');
   const [reportTab, setReportTab] = useState<'All' | 'PC' | 'MO'>('All');
   const [expandedCards, setExpandedCards] = useState<Set<Segment>>(new Set());
   const [openScenario, setOpenScenario] = useState<{ [k: string]: boolean }>({});
@@ -362,42 +361,17 @@ export default function Dashboard() {
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-4">키워드 세그먼트</h2>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-blue-900">분류 기준</p>
-              <div className="inline-flex rounded-lg bg-blue-100 p-1">
-                <button
-                  onClick={() => setCriteriaDevice('PC')}
-                  className={cn(
-                    'px-3 py-1 rounded-md text-xs font-medium',
-                    criteriaDevice === 'PC' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-700'
-                  )}
-                >
-                  PC
-                </button>
-                <button
-                  onClick={() => setCriteriaDevice('MO')}
-                  className={cn(
-                    'px-3 py-1 rounded-md text-xs font-medium',
-                    criteriaDevice === 'MO' ? 'bg-white text-blue-900 shadow-sm' : 'text-blue-700'
-                  )}
-                >
-                  Mobile
-                </button>
+            <p className="text-sm font-semibold text-blue-900 mb-2">분류 기준</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="text-sm text-blue-900">
+                <strong>PC 1순위 평균 클릭수:</strong> {formatNumber(criteria.pcAvgClicks || 0)}회<br/>
+                <strong>PC 1순위 평균 CPC:</strong> {formatCurrency(criteria.pcCPC || 0)}
+              </div>
+              <div className="text-sm text-blue-900">
+                <strong>Mobile 1순위 평균 클릭수:</strong> {formatNumber(criteria.moAvgClicks || 0)}회<br/>
+                <strong>Mobile 1순위 평균 CPC:</strong> {formatCurrency(criteria.moCPC || 0)}
               </div>
             </div>
-            <p className="text-sm text-blue-900">
-              {criteriaDevice === 'PC' ? (
-                <>
-                  <strong>PC 1순위 평균 클릭수:</strong> {formatNumber(criteria.pcAvgClicks || 0)}회 /
-                  <strong className="ml-2">PC 1순위 평균 CPC:</strong> {formatCurrency(criteria.pcCPC || 0)}
-                </>
-              ) : (
-                <>
-                  <strong>Mobile 1순위 평균 클릭수:</strong> {formatNumber(criteria.moAvgClicks || 0)}회 /
-                  <strong className="ml-2">Mobile 1순위 평균 CPC:</strong> {formatCurrency(criteria.moCPC || 0)}
-                </>
-              )}
-            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
