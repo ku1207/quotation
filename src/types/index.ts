@@ -48,6 +48,7 @@ export interface SegmentCriteria {
 // 순위별 시뮬레이션 데이터
 export interface RankSimulation {
   rank: number;
+  totalImpressions?: number; // 노출수
   totalClicks: number;
   totalCost: number;
   avgCPC: number;

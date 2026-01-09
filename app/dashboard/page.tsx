@@ -409,7 +409,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {/* 전체 카드 */}
             {(() => {
               const isExpanded = expandedCards.has('All');
@@ -619,27 +619,27 @@ export default function Dashboard() {
                 ? orderedFilteredStats.flatMap(s => s.moSimulations || [])
                 : orderedFilteredStats.flatMap(s => s.pcSimulations || []);
 
-              // 순위별로 그룹화하여 합산
-              const rankMap = new Map<number, { totalClicks: number; totalCost: number; count: number }>();
+              // 순위별로 그룹화하여 합산 (노출수, 클릭수, 광고비)
+              const rankMap = new Map<number, { totalImpressions: number; totalClicks: number; totalCost: number }>();
 
               allSimulations.forEach(sim => {
                 if (!rankMap.has(sim.rank)) {
-                  rankMap.set(sim.rank, { totalClicks: 0, totalCost: 0, count: 0 });
+                  rankMap.set(sim.rank, { totalImpressions: 0, totalClicks: 0, totalCost: 0 });
                 }
                 const entry = rankMap.get(sim.rank)!;
+                entry.totalImpressions += sim.totalImpressions || 0;
                 entry.totalClicks += sim.totalClicks || 0;
                 entry.totalCost += sim.totalCost || 0;
-                entry.count += 1;
               });
 
-              // 순위별 집계 데이터 생성
               const maxRank = reportTab === 'MO' ? 5 : 10;
               for (let rank = 1; rank <= maxRank; rank++) {
-                const entry = rankMap.get(rank) || { totalClicks: 0, totalCost: 0, count: 0 };
+                const entry = rankMap.get(rank) || { totalImpressions: 0, totalClicks: 0, totalCost: 0 };
                 const avgCPC = entry.totalClicks > 0 ? entry.totalCost / entry.totalClicks : 0;
 
                 chartData.push({
                   rank,
+                  totalImpressions: entry.totalImpressions,
                   totalClicks: entry.totalClicks,
                   totalCost: entry.totalCost,
                   avgCPC,
@@ -651,8 +651,8 @@ export default function Dashboard() {
                 const prevData = chartData[idx - 1];
                 return {
                   ...data,
-                  costChangeRate: prevData ? ((data.totalCost - prevData.totalCost) / prevData.totalCost) * 100 : undefined,
-                  avgCPCChangeRate: prevData ? ((data.avgCPC - prevData.avgCPC) / prevData.avgCPC) * 100 : undefined,
+                  costChangeRate: prevData && prevData.totalCost > 0 ? ((data.totalCost - prevData.totalCost) / prevData.totalCost) * 100 : undefined,
+                  avgCPCChangeRate: prevData && prevData.avgCPC > 0 ? ((data.avgCPC - prevData.avgCPC) / prevData.avgCPC) * 100 : undefined,
                 };
               });
             } else if (currentSegmentStats) {
@@ -670,7 +670,7 @@ export default function Dashboard() {
               <>
                 <div className="bg-white rounded-lg shadow p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    순위별 클릭수 & 비용 변화 ({reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'})
+                    순위별 클릭수 & 비용 변화{reportTab !== 'All' ? ` (${reportTab === 'PC' ? 'PC' : 'Mobile'})` : ''}
                   </h3>
                   {!hasData ? (
                     <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
@@ -678,7 +678,7 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="flex justify-center">
-                      <ResponsiveContainer width="100%" height={350}>
+                      <ResponsiveContainer width="110%" height={350}>
                         <BarChart
                           data={chartData}
                           margin={{ top: 5, right: 30, left: 20, bottom: 20 }}
@@ -728,7 +728,7 @@ export default function Dashboard() {
                 {/* 순위별 변화표 */}
                 <div className="mt-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">
-                    순위별 변화표 ({reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'})
+                    순위별 변화표{reportTab !== 'All' ? ` (${reportTab === 'PC' ? 'PC' : 'Mobile'})` : ''}
                   </h4>
                   <div className="bg-white rounded-lg shadow overflow-hidden">
                     {!hasData ? (
@@ -741,11 +741,12 @@ export default function Dashboard() {
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">순위</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">노출수</th>
                               <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">클릭수</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용</th>
                               <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용 변화율</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용</th>
                               <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC 변화율</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용 변화율</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
@@ -758,11 +759,12 @@ export default function Dashboard() {
                               return (
                                 <tr key={sim.rank} className={isMaxChange ? 'bg-yellow-50' : ''}>
                                   <td className="px-4 py-2 text-sm text-gray-900">{sim.rank}위</td>
+                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalImpressions || 0)}</td>
                                   <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalClicks)}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.totalCost)}</td>
                                   <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.avgCPC)}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}</td>
+                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.totalCost)}</td>
                                   <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null ? formatPercent(sim.avgCPCChangeRate) : '-'}</td>
+                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}</td>
                                 </tr>
                               );
                             })}

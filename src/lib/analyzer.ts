@@ -297,29 +297,33 @@ export function calculateSegmentStats(keywords: KeywordData[]): SegmentStats[] {
     // PC 시뮬레이션 (1~10위)
     const pcRanks = Array.from({ length: 10 }, (_, i) => i + 1);
     const pcSimulations: RankSimulation[] = pcRanks.map((rank) => {
+      let totalImpressions = 0;
       let totalClicks = 0;
       let totalCost = 0;
       pcKeywords.forEach((kw) => {
         const d = kw.pc[rank] || { impressions: 0, clicks: 0, cost: 0, cpc: 0 };
+        totalImpressions += d.impressions;
         totalClicks += d.clicks;
         totalCost += d.cost;
       });
       const avgCPC = totalClicks > 0 ? totalCost / totalClicks : 0;
-      return { rank, totalClicks, totalCost, avgCPC } as RankSimulation;
+      return { rank, totalImpressions, totalClicks, totalCost, avgCPC } as RankSimulation;
     });
 
     // MO 시뮬레이션 (1~5위)
     const moRanks = Array.from({ length: 5 }, (_, i) => i + 1);
     const moSimulations: RankSimulation[] = moRanks.map((rank) => {
+      let totalImpressions = 0;
       let totalClicks = 0;
       let totalCost = 0;
       moKeywords.forEach((kw) => {
         const d = kw.mo[rank] || { impressions: 0, clicks: 0, cost: 0, cpc: 0 };
+        totalImpressions += d.impressions;
         totalClicks += d.clicks;
         totalCost += d.cost;
       });
       const avgCPC = totalClicks > 0 ? totalCost / totalClicks : 0;
-      return { rank, totalClicks, totalCost, avgCPC } as RankSimulation;
+      return { rank, totalImpressions, totalClicks, totalCost, avgCPC } as RankSimulation;
     });
 
     // 변화율 계산: 각 순위를 바로 이전 순위와 비교하여 비용/avgCPC 변화율을 구함 (1위는 '-')
@@ -353,12 +357,13 @@ export function calculateSegmentStats(keywords: KeywordData[]): SegmentStats[] {
     // 전체 순위(1~10) 시뮬레이션을 모두 포함하여 반환
     const allRanks = Array.from({ length: 10 }, (_, i) => i + 1);
     const simulations = allRanks.map((rank) => {
-      const pc = pcSimulations.find((s) => s.rank === rank) || { totalClicks: 0, totalCost: 0, avgCPC: 0 };
-      const mo = moSimulations.find((s) => s.rank === rank) || { totalClicks: 0, totalCost: 0, avgCPC: 0 };
+      const pc = pcSimulations.find((s) => s.rank === rank) || { totalImpressions: 0, totalClicks: 0, totalCost: 0, avgCPC: 0 };
+      const mo = moSimulations.find((s) => s.rank === rank) || { totalImpressions: 0, totalClicks: 0, totalCost: 0, avgCPC: 0 };
+      const totalImpressions = (pc.totalImpressions || 0) + (mo.totalImpressions || 0);
       const totalClicks = (pc.totalClicks || 0) + (mo.totalClicks || 0);
       const totalCost = (pc.totalCost || 0) + (mo.totalCost || 0);
       const avgCPC = totalClicks > 0 ? totalCost / totalClicks : 0;
-      return { rank, totalClicks, totalCost, avgCPC } as RankSimulation;
+      return { rank, totalImpressions, totalClicks, totalCost, avgCPC } as RankSimulation;
     });
 
     return {
