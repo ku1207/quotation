@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
-// 순위별 데이터 (PC/MO 각각 1~15위, 1~5위)
+// 순위별 데이터 (PC 1~10위, MO 1~5위)
 export interface RankData {
+  impressions: number; // 노출수
   clicks: number;
   cost: number;
   cpc: number;
@@ -10,14 +11,21 @@ export interface RankData {
 // 키워드별 전체 데이터
 export interface KeywordData {
   keyword: string;
-  pc: Record<number, RankData>; // 1~15위
+  pc: Record<number, RankData>; // 1~10위
   mo: Record<number, RankData>; // 1~5위
+  // 디바이스별 개별 지표
+  pcClicks: number; // PC 1위 클릭수
+  moClicks: number; // MO 1위 클릭수
   totalClicks: number; // PC 1위 + MO 1위 클릭수 합
+  pcCost: number; // PC 1위 비용
+  moCost: number; // MO 1위 비용
   totalCost: number; // PC 1위 + MO 1위 비용 합
-  avgCPC: number; // 평균 CPC (PC 1위 + MO 1위)
+  pcCPC: number; // PC 1위 CPC
+  moCPC: number; // MO 1위 CPC
+  avgCPC: number; // 평균 CPC (총 비용 / 총 클릭수)
   // 기존 전체 기준 세그먼트
   segment: Segment;
-  // 디바이스별 세그먼트 분류 (선택된 디바이스에 따라 UI에서 사용)
+  // 디바이스별 세그먼트 분류
   segmentPc?: Segment;
   segmentMo?: Segment;
 }
@@ -40,6 +48,7 @@ export interface SegmentCriteria {
 // 순위별 시뮬레이션 데이터
 export interface RankSimulation {
   rank: number;
+  totalImpressions?: number; // 노출수
   totalClicks: number;
   totalCost: number;
   avgCPC: number;

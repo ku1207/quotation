@@ -39,9 +39,9 @@ export default function Dashboard() {
   const router = useRouter();
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [aiReport, setAiReport] = useState<AIReport | null>(null);
-  const [selectedSegment, setSelectedSegment] = useState<Segment>('High-Volume');
+  const [selectedSegment, setSelectedSegment] = useState<Segment | 'All'>('All');
   const [reportTab, setReportTab] = useState<'All' | 'PC' | 'MO'>('All');
-  const [expandedCards, setExpandedCards] = useState<Set<Segment>>(new Set());
+  const [expandedCards, setExpandedCards] = useState<Set<Segment | 'All'>>(new Set());
   const [openScenario, setOpenScenario] = useState<{ [k: string]: boolean }>({});
   const [loadingAI, setLoadingAI] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -169,8 +169,43 @@ export default function Dashboard() {
 
   const { criteria, segmentStats, topKeywords, keywords } = analysisResult;
   const hasParsedData = Array.isArray(segmentStats) && segmentStats.length > 0 && Array.isArray(topKeywords) && topKeywords.length > 0;
+
+  // 세그먼트 고정 순서
+  const segmentOrder: Array<Segment | 'All'> = ['All', 'High-Volume', 'Efficiency', 'Long-tail', 'High-Cost'];
+
+  // 세그먼트 순서대로 정렬
+  const orderedSegmentStats = segmentOrder
+    .filter(seg => seg !== 'All')
+    .map(seg => segmentStats.find(s => s.segment === seg))
+    .filter((s): s is typeof segmentStats[number] => s !== undefined);
+
   const filteredSegmentStats = getFilteredSegmentStats();
-  const currentSegmentStats = filteredSegmentStats.find((s) => s.segment === selectedSegment);
+
+  // 필터링된 결과도 순서대로 정렬
+  const orderedFilteredStats = segmentOrder
+    .filter(seg => seg !== 'All')
+    .map(seg => filteredSegmentStats.find(s => s.segment === seg))
+    .filter((s): s is typeof filteredSegmentStats[number] => s !== undefined);
+
+  const currentSegmentStats = selectedSegment === 'All'
+    ? undefined
+    : orderedFilteredStats.find((s) => s.segment === selectedSegment);
+
+  // Top 10 키워드를 디바이스별로 정렬
+  const getTopKeywords = () => {
+    const sorted = [...keywords].sort((a, b) => {
+      if (reportTab === 'PC') {
+        return b.pcCost - a.pcCost;
+      } else if (reportTab === 'MO') {
+        return b.moCost - a.moCost;
+      } else {
+        return b.totalCost - a.totalCost;
+      }
+    });
+    return sorted.slice(0, 10);
+  };
+
+  const displayTopKeywords = getTopKeywords();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -374,8 +409,81 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {filteredSegmentStats.map((stat) => {
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {/* 전체 카드 */}
+            {(() => {
+              const isExpanded = expandedCards.has('All');
+              const totalKeywordCount = keywords.length;
+              const totalBudgetRatio = 100;
+
+              return (
+                <div
+                  key="All"
+                  className="bg-white rounded-lg shadow border-l-4 overflow-hidden"
+                  style={{ borderColor: '#6b7280' }}
+                >
+                  <button
+                    onClick={() => {
+                      setExpandedCards(prev => {
+                        const newSet = new Set(prev);
+                        if (newSet.has('All')) {
+                          newSet.delete('All');
+                        } else {
+                          newSet.add('All');
+                        }
+                        return newSet;
+                      });
+                    }}
+                    className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <div
+                      className="inline-block px-2 py-1 rounded-full text-xs font-medium mb-3"
+                      style={{
+                        backgroundColor: '#f3f4f6',
+                        color: '#6b7280',
+                      }}
+                    >
+                      전체
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600 mb-1">키워드 수</p>
+                        <p className="text-lg font-semibold text-gray-900">{totalKeywordCount}</p>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600 mb-1">광고비 비중</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {formatPercent(totalBudgetRatio)}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-gray-200 bg-gray-50 p-4 max-h-60 overflow-y-auto">
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">키워드 목록</h4>
+                      <ul className="space-y-1">
+                        {keywords.map((kw, idx) => (
+                          <li key={idx} className="text-sm text-gray-600">
+                            • {kw.keyword}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 세그먼트별 카드 */}
+            {orderedFilteredStats.map((stat) => {
               const isExpanded = expandedCards.has(stat.segment);
               const segmentKeywords = keywords.filter(kw => {
                 if (reportTab === 'All') return kw.segment === stat.segment;
@@ -408,7 +516,7 @@ export default function Dashboard() {
                         <p className="text-lg font-semibold text-gray-900">{stat.keywordCount}</p>
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm text-gray-600 mb-1">예산 비중</p>
+                        <p className="text-sm text-gray-600 mb-1">광고비 비중</p>
                         <p className="text-lg font-semibold text-gray-900">
                           {formatPercent(stat.budgetRatio)}
                         </p>
@@ -463,7 +571,21 @@ export default function Dashboard() {
 
           {/* 탭 */}
           <div className="flex space-x-2 mb-4 overflow-x-auto">
-            {filteredSegmentStats.map((stat) => (
+            {/* 전체 탭 */}
+            <button
+              onClick={() => setSelectedSegment('All')}
+              className={cn(
+                'px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap',
+                selectedSegment === 'All'
+                  ? 'bg-gray-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              전체
+            </button>
+
+            {/* 세그먼트별 탭 */}
+            {orderedFilteredStats.map((stat) => (
               <button
                 key={stat.segment}
                 onClick={() => setSelectedSegment(stat.segment)}
@@ -486,27 +608,77 @@ export default function Dashboard() {
           </div>
 
           {/* 그래프 */}
-          {currentSegmentStats && (
-            <>
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  순위별 클릭수 & 비용 변화 ({reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'})
-                </h3>
-                {(() => {
-                  const chartData = reportTab === 'MO' ? currentSegmentStats.moSimulations : currentSegmentStats.pcSimulations;
-                  const hasData = chartData && chartData.length > 0 && chartData.some(d => d.totalClicks > 0 || d.totalCost > 0);
+          {(() => {
+            // 'All' 선택 시 모든 세그먼트의 시뮬레이션 집계
+            let chartData: any[] = [];
+            let tableData: any[] = [];
 
-                  if (!hasData) {
-                    return (
-                      <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-500">해당 세그먼트의 {reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'} 데이터가 없습니다.</p>
-                      </div>
-                    );
-                  }
+            if (selectedSegment === 'All') {
+              // 모든 세그먼트의 시뮬레이션을 집계
+              const allSimulations = reportTab === 'MO'
+                ? orderedFilteredStats.flatMap(s => s.moSimulations || [])
+                : orderedFilteredStats.flatMap(s => s.pcSimulations || []);
 
-                  return (
+              // 순위별로 그룹화하여 합산 (노출수, 클릭수, 광고비)
+              const rankMap = new Map<number, { totalImpressions: number; totalClicks: number; totalCost: number }>();
+
+              allSimulations.forEach(sim => {
+                if (!rankMap.has(sim.rank)) {
+                  rankMap.set(sim.rank, { totalImpressions: 0, totalClicks: 0, totalCost: 0 });
+                }
+                const entry = rankMap.get(sim.rank)!;
+                entry.totalImpressions += sim.totalImpressions || 0;
+                entry.totalClicks += sim.totalClicks || 0;
+                entry.totalCost += sim.totalCost || 0;
+              });
+
+              const maxRank = reportTab === 'MO' ? 5 : 10;
+              for (let rank = 1; rank <= maxRank; rank++) {
+                const entry = rankMap.get(rank) || { totalImpressions: 0, totalClicks: 0, totalCost: 0 };
+                const avgCPC = entry.totalClicks > 0 ? entry.totalCost / entry.totalClicks : 0;
+
+                chartData.push({
+                  rank,
+                  totalImpressions: entry.totalImpressions,
+                  totalClicks: entry.totalClicks,
+                  totalCost: entry.totalCost,
+                  avgCPC,
+                });
+              }
+
+              // 변화율 계산
+              tableData = chartData.map((data, idx) => {
+                const prevData = chartData[idx - 1];
+                return {
+                  ...data,
+                  costChangeRate: prevData && prevData.totalCost > 0 ? ((data.totalCost - prevData.totalCost) / prevData.totalCost) * 100 : undefined,
+                  avgCPCChangeRate: prevData && prevData.avgCPC > 0 ? ((data.avgCPC - prevData.avgCPC) / prevData.avgCPC) * 100 : undefined,
+                };
+              });
+            } else if (currentSegmentStats) {
+              chartData = reportTab === 'MO' ? currentSegmentStats.moSimulations : currentSegmentStats.pcSimulations;
+              tableData = reportTab === 'MO' ? currentSegmentStats.moSimulations : currentSegmentStats.pcSimulations;
+              // PC일 때는 1-10위까지만 표시
+              if (reportTab !== 'MO' && tableData) {
+                tableData = tableData.filter(sim => sim.rank <= 10);
+              }
+            }
+
+            const hasData = chartData && chartData.length > 0 && chartData.some(d => d.totalClicks > 0 || d.totalCost > 0);
+
+            return (
+              <>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    순위별 클릭수 & 비용 변화{reportTab !== 'All' ? ` (${reportTab === 'PC' ? 'PC' : 'Mobile'})` : ''}
+                  </h3>
+                  {!hasData ? (
+                    <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">해당 세그먼트의 {reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'} 데이터가 없습니다.</p>
+                    </div>
+                  ) : (
                     <div className="flex justify-center">
-                      <ResponsiveContainer width="100%" height={350}>
+                      <ResponsiveContainer width="110%" height={350}>
                         <BarChart
                           data={chartData}
                           margin={{ top: 5, right: 30, left: 20, bottom: 20 }}
@@ -550,187 +722,180 @@ export default function Dashboard() {
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                  );
-                })()}
-              </div>
+                  )}
+                </div>
 
-              {/* 순위별 변화표 */}
-              <div className="mt-6">
-                <h4 className="text-lg font-semibold text-gray-900 mb-4">
-                  순위별 변화표 ({reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'})
-                </h4>
-                <div className="bg-white rounded-lg shadow overflow-hidden">
-                  {(() => {
-                    const tableData = reportTab === 'MO' ? currentSegmentStats.moSimulations : currentSegmentStats.pcSimulations;
-                    // PC일 때는 1-10위까지만 표시
-                    const filteredData = reportTab !== 'MO' && tableData ? tableData.filter(sim => sim.rank <= 10) : tableData;
-                    const hasData = filteredData && filteredData.length > 0;
-
-                    if (!hasData) {
-                      return (
-                        <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg p-6">
-                          <p className="text-sm text-gray-500">해당 세그먼트의 {reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'} 데이터가 없습니다.</p>
-                        </div>
-                      );
-                    }
-
-                    return (
+                {/* 순위별 변화표 */}
+                <div className="mt-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                    순위별 변화표{reportTab !== 'All' ? ` (${reportTab === 'PC' ? 'PC' : 'Mobile'})` : ''}
+                  </h4>
+                  <div className="bg-white rounded-lg shadow overflow-hidden">
+                    {!hasData ? (
+                      <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg p-6">
+                        <p className="text-sm text-gray-500">해당 세그먼트의 {reportTab === 'All' ? '전체' : reportTab === 'PC' ? 'PC' : 'Mobile'} 데이터가 없습니다.</p>
+                      </div>
+                    ) : (
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">순위</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">노출수</th>
                               <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">클릭수</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용</th>
                               <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용 변화율</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용</th>
                               <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">평균 CPC 변화율</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">비용 변화율</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {filteredData.map((sim: any) => {
-                              const isMaxChange = reportTab === 'MO'
-                                ? sim.rank === currentSegmentStats.maxChangeRankMo
-                                : sim.rank === currentSegmentStats.maxChangeRankPc;
+                            {tableData.map((sim: any) => {
+                              const isMaxChange = selectedSegment !== 'All' && currentSegmentStats && (
+                                reportTab === 'MO'
+                                  ? sim.rank === currentSegmentStats.maxChangeRankMo
+                                  : sim.rank === currentSegmentStats.maxChangeRankPc
+                              );
                               return (
                                 <tr key={sim.rank} className={isMaxChange ? 'bg-yellow-50' : ''}>
                                   <td className="px-4 py-2 text-sm text-gray-900">{sim.rank}위</td>
+                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalImpressions || 0)}</td>
                                   <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatNumber(sim.totalClicks)}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.totalCost)}</td>
                                   <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.avgCPC)}</td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}</td>
+                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(sim.totalCost)}</td>
                                   <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.avgCPCChangeRate !== undefined && sim.avgCPCChangeRate !== null ? formatPercent(sim.avgCPCChangeRate) : '-'}</td>
+                                  <td className="px-4 py-2 text-sm text-gray-900 text-right">{sim.costChangeRate !== undefined && sim.costChangeRate !== null ? formatPercent(sim.costChangeRate) : '-'}</td>
                                 </tr>
                               );
                             })}
                           </tbody>
                         </table>
                       </div>
-                    );
-                  })()}
+                    )}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </section>
 
-        {/* 섹션 3: Top 10 키워드 비교 */}
-        <section>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Top 10 광고비 키워드
-          </h2>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      순위
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      키워드
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      세그먼트
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      1위 비용
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      2위 비용
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      3위 비용
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      4위 비용
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      5위 비용
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      비용 배수
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {(() => {
-                      // 총합 계산
-                      let totalCost1 = 0, totalCost2 = 0, totalCost3 = 0, totalCost4 = 0, totalCost5 = 0;
-
-                      const rows = topKeywords.map((kw, idx) => {
-                        // show per-device Top5 (1~5) and cost multiple formula
-                        const cost1 = reportTab === 'MO' ? (kw.mo[1]?.cost || 0) : (kw.pc[1]?.cost || 0);
-                        const cost2 = reportTab === 'MO' ? (kw.mo[2]?.cost || 0) : (kw.pc[2]?.cost || 0);
-                        const cost3 = reportTab === 'MO' ? (kw.mo[3]?.cost || 0) : (kw.pc[3]?.cost || 0);
-                        const cost4 = reportTab === 'MO' ? (kw.mo[4]?.cost || 0) : (kw.pc[4]?.cost || 0);
-                        const cost5 = reportTab === 'MO' ? (kw.mo[5]?.cost || 0) : (kw.pc[5]?.cost || 0);
-
-                        totalCost1 += cost1;
-                        totalCost2 += cost2;
-                        totalCost3 += cost3;
-                        totalCost4 += cost4;
-                        totalCost5 += cost5;
-
-                        const costMultiple = cost5 > 0 ? cost1 / cost5 : 0;
-                        const isHighCompetition = costMultiple > 3;
-
-                        return (
-                          <tr key={idx} className={cn(isHighCompetition && 'bg-red-50')}>
-                            <td className="px-6 py-4 text-sm text-gray-900">{idx + 1}</td>
-                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{kw.keyword}</td>
-                            <td className="px-6 py-4 text-sm">
-                              {(() => {
-                                const seg = reportTab === 'MO' ? (kw.segmentMo || kw.segment) : (kw.segmentPc || kw.segment);
-                                return (
-                                  <span className="inline-block px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: getSegmentBgColor(seg), color: getSegmentColor(seg) }}>{getSegmentLabel(seg)}</span>
-                                );
-                              })()}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost1)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost2)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost3)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost4)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost5)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right font-semibold">
-                              {costMultiple > 0 ? `${costMultiple.toFixed(1)}x` : '-'}
-                              {isHighCompetition && <AlertCircle className="inline-block w-4 h-4 ml-1 text-red-600" />}
-                            </td>
+                {/* Top 10 광고비 키워드 */}
+                <div className="mt-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                    Top 10 광고비 키워드
+                  </h4>
+                  <div className="bg-white rounded-lg shadow overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                              순위
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                              키워드
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                              세그먼트
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                              1위 비용
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                              2위 비용
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                              3위 비용
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                              4위 비용
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                              5위 비용
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                              비용 배수
+                            </th>
                           </tr>
-                        );
-                      });
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {(() => {
+                            // 총합 계산
+                            let totalCost1 = 0, totalCost2 = 0, totalCost3 = 0, totalCost4 = 0, totalCost5 = 0;
 
-                      const totalMultiple = totalCost5 > 0 ? totalCost1 / totalCost5 : 0;
+                            const rows = displayTopKeywords.map((kw, idx) => {
+                              // show per-device Top5 (1~5) and cost multiple formula
+                              const cost1 = reportTab === 'MO' ? (kw.mo[1]?.cost || 0) : (kw.pc[1]?.cost || 0);
+                              const cost2 = reportTab === 'MO' ? (kw.mo[2]?.cost || 0) : (kw.pc[2]?.cost || 0);
+                              const cost3 = reportTab === 'MO' ? (kw.mo[3]?.cost || 0) : (kw.pc[3]?.cost || 0);
+                              const cost4 = reportTab === 'MO' ? (kw.mo[4]?.cost || 0) : (kw.pc[4]?.cost || 0);
+                              const cost5 = reportTab === 'MO' ? (kw.mo[5]?.cost || 0) : (kw.pc[5]?.cost || 0);
 
-                      return (
-                        <>
-                          <tr className="bg-blue-50 font-semibold">
-                            <td className="px-6 py-4 text-sm text-gray-900">-</td>
-                            <td className="px-6 py-4 text-sm font-bold text-gray-900">총합</td>
-                            <td className="px-6 py-4 text-sm">-</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost1)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost2)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost3)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost4)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost5)}</td>
-                            <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">
-                              {totalMultiple > 0 ? `${totalMultiple.toFixed(1)}x` : '-'}
-                            </td>
-                          </tr>
-                          {rows}
-                        </>
-                      );
-                    })()}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <p className="mt-2 text-sm text-gray-600">
-            비용 배수는 선택된 디바이스의 1위 비용을 5위 비용으로 나눈 값입니다. (비용 배수 = 1위 / 5위)
-          </p>
-          <p className="mt-2 text-sm text-gray-600">
-            * 비용 배수가 3배 이상인 키워드는 경쟁 과열 상태입니다.
-          </p>
+                              totalCost1 += cost1;
+                              totalCost2 += cost2;
+                              totalCost3 += cost3;
+                              totalCost4 += cost4;
+                              totalCost5 += cost5;
+
+                              const costMultiple = cost5 > 0 ? cost1 / cost5 : 0;
+                              const isHighCompetition = costMultiple > 3;
+
+                              return (
+                                <tr key={idx} className={cn(isHighCompetition && 'bg-red-50')}>
+                                  <td className="px-6 py-4 text-sm text-gray-900">{idx + 1}</td>
+                                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{kw.keyword}</td>
+                                  <td className="px-6 py-4 text-sm">
+                                    {(() => {
+                                      const seg = reportTab === 'MO' ? (kw.segmentMo || kw.segment) : (kw.segmentPc || kw.segment);
+                                      return (
+                                        <span className="inline-block px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: getSegmentBgColor(seg), color: getSegmentColor(seg) }}>{getSegmentLabel(seg)}</span>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost1)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost2)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost3)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost4)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(cost5)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-semibold">
+                                    {costMultiple > 0 ? `${costMultiple.toFixed(1)}x` : '-'}
+                                    {isHighCompetition && <AlertCircle className="inline-block w-4 h-4 ml-1 text-red-600" />}
+                                  </td>
+                                </tr>
+                              );
+                            });
+
+                            const totalMultiple = totalCost5 > 0 ? totalCost1 / totalCost5 : 0;
+
+                            return (
+                              <>
+                                <tr className="bg-blue-50 font-semibold">
+                                  <td className="px-6 py-4 text-sm text-gray-900">-</td>
+                                  <td className="px-6 py-4 text-sm font-bold text-gray-900">총합</td>
+                                  <td className="px-6 py-4 text-sm">-</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost1)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost2)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost3)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost4)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">{formatCurrency(totalCost5)}</td>
+                                  <td className="px-6 py-4 text-sm text-gray-900 text-right font-bold">
+                                    {totalMultiple > 0 ? `${totalMultiple.toFixed(1)}x` : '-'}
+                                  </td>
+                                </tr>
+                                {rows}
+                              </>
+                            );
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-600">
+                    비용 배수는 선택된 디바이스의 1위 비용을 5위 비용으로 나눈 값입니다. (비용 배수 = 1위 / 5위)
+                  </p>
+                  <p className="mt-2 text-sm text-gray-600">
+                    * 비용 배수가 3배 이상인 키워드는 경쟁 과열 상태입니다.
+                  </p>
+                </div>
+              </>
+            );
+          })()}
         </section>
       </main>
     </div>

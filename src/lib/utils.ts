@@ -72,10 +72,10 @@ export function average(numbers: number[]): number {
  */
 export function getSegmentLabel(segment: string): string {
   const labels: Record<string, string> = {
-    'High-Volume': '고성과',
-    'Efficiency': '효율형',
-    'Long-tail': '롱테일',
-    'High-Cost': '고비용',
+    'High-Volume': '고 클릭&CPC',
+    'Efficiency': '고 클릭&저 CPC',
+    'Long-tail': '저 클릭&저 CPC',
+    'High-Cost': '저 클릭&고 CPC',
   };
   return labels[segment] || segment;
 }
