@@ -21,6 +21,8 @@ import {
   Loader2,
   ArrowLeft,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import type { AnalysisResult, AIReport, Segment } from '@/types';
 import {
@@ -40,6 +42,8 @@ export default function Dashboard() {
   const [selectedSegment, setSelectedSegment] = useState<Segment>('High-Volume');
   const [selectedDevice, setSelectedDevice] = useState<'PC' | 'MO'>('PC');
   const [criteriaDevice, setCriteriaDevice] = useState<'PC' | 'MO'>('PC');
+  const [reportTab, setReportTab] = useState<'All' | 'PC' | 'MO'>('All');
+  const [expandedCards, setExpandedCards] = useState<Set<Segment>>(new Set());
   const [openScenario, setOpenScenario] = useState<{ [k: string]: boolean }>({});
   const [loadingAI, setLoadingAI] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +90,64 @@ export default function Dashboard() {
     }
   };
 
+  const toggleCardExpansion = (segment: Segment) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(segment)) {
+        newSet.delete(segment);
+      } else {
+        newSet.add(segment);
+      }
+      return newSet;
+    });
+  };
+
+  const getFilteredSegmentStats = () => {
+    if (!analysisResult) return [];
+
+    if (reportTab === 'All') {
+      return segmentStats;
+    }
+
+    // PC 또는 MO 탭일 때: 해당 디바이스 기준으로 재분류된 세그먼트만 표시
+    const deviceField = reportTab === 'PC' ? 'segmentPc' : 'segmentMo';
+    const keywords = analysisResult.keywords;
+
+    // 해당 디바이스 기준으로 세그먼트별 키워드 수와 예산 비중 재계산
+    const segmentMap = new Map<Segment, { keywords: typeof keywords, totalCost: number }>();
+
+    keywords.forEach(kw => {
+      const segment = kw[deviceField] || kw.segment;
+      if (!segmentMap.has(segment)) {
+        segmentMap.set(segment, { keywords: [], totalCost: 0 });
+      }
+      const entry = segmentMap.get(segment)!;
+      entry.keywords.push(kw);
+
+      // 해당 디바이스의 1순위 비용만 집계
+      const cost = reportTab === 'PC' ? (kw.pc[1]?.cost || 0) : (kw.mo[1]?.cost || 0);
+      entry.totalCost += cost;
+    });
+
+    const totalCost = Array.from(segmentMap.values()).reduce((sum, entry) => sum + entry.totalCost, 0);
+
+    // SegmentStats 배열로 변환
+    return Array.from(segmentMap.entries()).map(([segment, entry]) => {
+      const originalStats = segmentStats.find(s => s.segment === segment);
+      return {
+        segment,
+        keywordCount: entry.keywords.length,
+        budgetRatio: totalCost > 0 ? (entry.totalCost / totalCost) : 0,
+        simulations: originalStats?.simulations || [],
+        pcSimulations: originalStats?.pcSimulations || [],
+        moSimulations: originalStats?.moSimulations || [],
+        maxChangeRank: originalStats?.maxChangeRank,
+        maxChangeRankPc: originalStats?.maxChangeRankPc,
+        maxChangeRankMo: originalStats?.maxChangeRankMo,
+      };
+    });
+  };
+
   if (!analysisResult) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -94,9 +156,10 @@ export default function Dashboard() {
     );
   }
 
-  const { criteria, segmentStats, topKeywords } = analysisResult;
+  const { criteria, segmentStats, topKeywords, keywords } = analysisResult;
   const hasParsedData = Array.isArray(segmentStats) && segmentStats.length > 0 && Array.isArray(topKeywords) && topKeywords.length > 0;
-  const currentSegmentStats = segmentStats.find((s) => s.segment === selectedSegment);
+  const filteredSegmentStats = getFilteredSegmentStats();
+  const currentSegmentStats = filteredSegmentStats.find((s) => s.segment === selectedSegment);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -119,8 +182,171 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* 리포트 탭 (전체/PC/Mobile) */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-1">
+            <button
+              onClick={() => setReportTab('All')}
+              className={cn(
+                'px-6 py-3 font-medium border-b-2 transition-colors',
+                reportTab === 'All'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              )}
+            >
+              전체
+            </button>
+            <button
+              onClick={() => setReportTab('PC')}
+              className={cn(
+                'px-6 py-3 font-medium border-b-2 transition-colors',
+                reportTab === 'PC'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              )}
+            >
+              PC
+            </button>
+            <button
+              onClick={() => setReportTab('MO')}
+              className={cn(
+                'px-6 py-3 font-medium border-b-2 transition-colors',
+                reportTab === 'MO'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              )}
+            >
+              Mobile
+            </button>
+          </div>
+        </div>
+      </div>
+
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-8">
-        {/* 섹션 1: 키워드 세그먼트 */}
+        {/* 섹션 1: 전략 시나리오 (moved up) */}
+        {aiReport && (
+          <section>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">전략 시나리오</h2>
+            {error && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-yellow-800">{error}</p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* 시나리오 A: 공격 */}
+              <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-red-500">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-red-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">공격 전략</h3>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      전략 배경
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.aggressive.background}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      실행 방법
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.aggressive.execution}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      예상 KPI 변화
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.aggressive.expectedKPI}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 시나리오 B: 효율 */}
+              <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-green-500">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <Target className="w-6 h-6 text-green-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">효율 전략</h3>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      전략 배경
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.efficiency.background}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      실행 방법
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.efficiency.execution}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      예상 KPI 변화
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.efficiency.expectedKPI}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 시나리오 C: 방어 */}
+              <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-blue-500">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Shield className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">방어 전략</h3>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      전략 배경
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.defensive.background}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      실행 방법
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.defensive.execution}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
+                      예상 KPI 변화
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {aiReport.strategies.defensive.expectedKPI}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 섹션 2: 키워드 세그먼트 */}
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-4">키워드 세그먼트</h2>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -163,35 +389,69 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {segmentStats.map((stat) => (
-              <div
-                key={stat.segment}
-                className="bg-white rounded-lg shadow p-4 border-l-4 flex flex-col"
-                style={{ borderColor: getSegmentColor(stat.segment) }}
-              >
+            {filteredSegmentStats.map((stat) => {
+              const isExpanded = expandedCards.has(stat.segment);
+              const segmentKeywords = keywords.filter(kw => {
+                if (reportTab === 'All') return kw.segment === stat.segment;
+                const deviceField = reportTab === 'PC' ? 'segmentPc' : 'segmentMo';
+                return (kw[deviceField] || kw.segment) === stat.segment;
+              });
+
+              return (
                 <div
-                  className="inline-block px-2 py-1 rounded-full text-xs font-medium mb-2 self-start"
-                  style={{
-                    backgroundColor: getSegmentBgColor(stat.segment),
-                    color: getSegmentColor(stat.segment),
-                  }}
+                  key={stat.segment}
+                  className="bg-white rounded-lg shadow border-l-4 overflow-hidden"
+                  style={{ borderColor: getSegmentColor(stat.segment) }}
                 >
-                  {getSegmentLabel(stat.segment)}
+                  <button
+                    onClick={() => toggleCardExpansion(stat.segment)}
+                    className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <div
+                      className="inline-block px-2 py-1 rounded-full text-xs font-medium mb-3"
+                      style={{
+                        backgroundColor: getSegmentBgColor(stat.segment),
+                        color: getSegmentColor(stat.segment),
+                      }}
+                    >
+                      {getSegmentLabel(stat.segment)}
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600 mb-1">키워드 수</p>
+                        <p className="text-lg font-semibold text-gray-900">{stat.keywordCount}</p>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600 mb-1">예산 비중</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {formatPercent(stat.budgetRatio)}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-gray-200 bg-gray-50 p-4 max-h-60 overflow-y-auto">
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">키워드 목록</h4>
+                      <ul className="space-y-1">
+                        {segmentKeywords.map((kw, idx) => (
+                          <li key={idx} className="text-sm text-gray-600">
+                            • {kw.keyword}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 space-y-2">
-                  <div>
-                    <p className="text-xs text-gray-600">키워드 수</p>
-                    <p className="text-xl font-bold text-gray-900">{stat.keywordCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">예산 비중</p>
-                    <p className="text-base font-semibold text-gray-900">
-                      {formatPercent(stat.budgetRatio)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -211,13 +471,13 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* 섹션 2: 세그먼트별 상세 분석 */}
+        {/* 섹션 3: 세그먼트별 상세 분석 */}
         <section>
           <h2 className="text-xl font-bold text-gray-900 mb-4">세그먼트별 상세 분석</h2>
 
           {/* 탭 */}
           <div className="flex space-x-2 mb-4 overflow-x-auto">
-            {segmentStats.map((stat) => (
+            {filteredSegmentStats.map((stat) => (
               <button
                 key={stat.segment}
                 onClick={() => setSelectedSegment(stat.segment)}
@@ -473,128 +733,6 @@ export default function Dashboard() {
             * 비용 배수가 3배 이상인 키워드는 경쟁 과열 상태입니다.
           </p>
         </section>
-
-        {/* 섹션 4: 전략 시나리오 */}
-        {aiReport && (
-          <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-4">전략 시나리오</h2>
-            {error && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-yellow-800">{error}</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* 시나리오 A: 공격 */}
-              <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-red-500">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-red-600" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900">공격 전략</h3>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      전략 배경
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.aggressive.background}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      실행 방법
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.aggressive.execution}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      예상 KPI 변화
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.aggressive.expectedKPI}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* 시나리오 B: 효율 */}
-              <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-green-500">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                    <Target className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900">효율 전략</h3>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      전략 배경
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.efficiency.background}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      실행 방법
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.efficiency.execution}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      예상 KPI 변화
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.efficiency.expectedKPI}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* 시나리오 C: 방어 */}
-              <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-blue-500">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <Shield className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900">방어 전략</h3>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      전략 배경
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.defensive.background}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      실행 방법
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.defensive.execution}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-1">
-                      예상 KPI 변화
-                    </h4>
-                    <p className="text-sm text-gray-600">
-                      {aiReport.strategies.defensive.expectedKPI}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
       </main>
     </div>
   );
