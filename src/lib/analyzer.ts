@@ -87,7 +87,8 @@ function buildColumnMap(header1: any[], header2: any[]): Map<string, number> {
     // Map Korean metric names to internal metric keys
     let metricType = '';
     const m = metricText.replace(/\s+/g, '').toLowerCase();
-    if (m.includes('예상클릭수') || m.includes('클릭수') || m.includes('클릭')) metricType = 'clicks';
+    if (m.includes('예상노출수') || m.includes('노출수') || m.includes('노출')) metricType = 'impressions';
+    else if (m.includes('예상클릭수') || m.includes('클릭수') || m.includes('클릭')) metricType = 'clicks';
     else if (m.includes('예상광고비용') || m.includes('광고비용') || m.includes('비용')) metricType = 'cost';
     else if (m.includes('예상cpc') || m.includes('cpc')) metricType = 'cpc';
 
@@ -106,10 +107,11 @@ function buildColumnMap(header1: any[], header2: any[]): Map<string, number> {
 function parseKeywordRow(row: any[], columnMap: Map<string, number>): KeywordData {
   const keyword = String(row[0]).trim();
 
-  // PC 데이터 (1~15위)
+  // PC 데이터 (1~10위)
   const pc: Record<number, RankData> = {};
-  for (let rank = 1; rank <= 15; rank++) {
+  for (let rank = 1; rank <= 10; rank++) {
     pc[rank] = {
+      impressions: getColumnValue(row, columnMap, 'PC', rank, 'impressions'),
       clicks: getColumnValue(row, columnMap, 'PC', rank, 'clicks'),
       cost: getColumnValue(row, columnMap, 'PC', rank, 'cost'),
       cpc: getColumnValue(row, columnMap, 'PC', rank, 'cpc'),
@@ -120,23 +122,38 @@ function parseKeywordRow(row: any[], columnMap: Map<string, number>): KeywordDat
   const mo: Record<number, RankData> = {};
   for (let rank = 1; rank <= 5; rank++) {
     mo[rank] = {
+      impressions: getColumnValue(row, columnMap, 'MO', rank, 'impressions'),
       clicks: getColumnValue(row, columnMap, 'MO', rank, 'clicks'),
       cost: getColumnValue(row, columnMap, 'MO', rank, 'cost'),
       cpc: getColumnValue(row, columnMap, 'MO', rank, 'cpc'),
     };
   }
 
+  // 디바이스별 개별 지표 (1위 기준)
+  const pcClicks = pc[1].clicks;
+  const moClicks = mo[1].clicks;
+  const pcCost = pc[1].cost;
+  const moCost = mo[1].cost;
+  const pcCPC = pcClicks > 0 ? pcCost / pcClicks : 0;
+  const moCPC = moClicks > 0 ? moCost / moClicks : 0;
+
   // 합산 지표 (PC 1위 + MO 1위)
-  const totalClicks = pc[1].clicks + mo[1].clicks;
-  const totalCost = pc[1].cost + mo[1].cost;
+  const totalClicks = pcClicks + moClicks;
+  const totalCost = pcCost + moCost;
   const avgCPC = totalClicks > 0 ? totalCost / totalClicks : 0;
 
   return {
     keyword,
     pc,
     mo,
+    pcClicks,
+    moClicks,
     totalClicks,
+    pcCost,
+    moCost,
     totalCost,
+    pcCPC,
+    moCPC,
     avgCPC,
     segment: 'Long-tail', // 초기값, 나중에 분류
   };
@@ -277,13 +294,13 @@ export function calculateSegmentStats(keywords: KeywordData[]): SegmentStats[] {
     const segmentKeywords = segmentKeywordsUnion;
     const segmentBudget = sum(segmentKeywordsUnion.map((k) => k.totalCost));
 
-    // PC 시뮬레이션 (1~15위)
-    const pcRanks = Array.from({ length: 15 }, (_, i) => i + 1);
+    // PC 시뮬레이션 (1~10위)
+    const pcRanks = Array.from({ length: 10 }, (_, i) => i + 1);
     const pcSimulations: RankSimulation[] = pcRanks.map((rank) => {
       let totalClicks = 0;
       let totalCost = 0;
       pcKeywords.forEach((kw) => {
-        const d = kw.pc[rank] || { clicks: 0, cost: 0, cpc: 0 };
+        const d = kw.pc[rank] || { impressions: 0, clicks: 0, cost: 0, cpc: 0 };
         totalClicks += d.clicks;
         totalCost += d.cost;
       });
@@ -297,7 +314,7 @@ export function calculateSegmentStats(keywords: KeywordData[]): SegmentStats[] {
       let totalClicks = 0;
       let totalCost = 0;
       moKeywords.forEach((kw) => {
-        const d = kw.mo[rank] || { clicks: 0, cost: 0, cpc: 0 };
+        const d = kw.mo[rank] || { impressions: 0, clicks: 0, cost: 0, cpc: 0 };
         totalClicks += d.clicks;
         totalCost += d.cost;
       });
@@ -333,8 +350,8 @@ export function calculateSegmentStats(keywords: KeywordData[]): SegmentStats[] {
     const maxChangeRankPc = findMaxChangeRank(pcSimulations);
     const maxChangeRankMo = findMaxChangeRank(moSimulations);
 
-    // 전체 순위(1~15) 시뮬레이션을 모두 포함하여 반환
-    const allRanks = Array.from({ length: 15 }, (_, i) => i + 1);
+    // 전체 순위(1~10) 시뮬레이션을 모두 포함하여 반환
+    const allRanks = Array.from({ length: 10 }, (_, i) => i + 1);
     const simulations = allRanks.map((rank) => {
       const pc = pcSimulations.find((s) => s.rank === rank) || { totalClicks: 0, totalCost: 0, avgCPC: 0 };
       const mo = moSimulations.find((s) => s.rank === rank) || { totalClicks: 0, totalCost: 0, avgCPC: 0 };
