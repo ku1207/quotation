@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import {
   BarChart,
   Bar,
+  Line,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -614,48 +616,69 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="flex justify-center">
-                      <ResponsiveContainer width="110%" height={350}>
-                        <BarChart
+                      <ResponsiveContainer width="110%" height={400}>
+                        <ComposedChart
                           data={chartData}
-                          margin={{ top: 5, right: 30, left: 20, bottom: 20 }}
+                          margin={{ top: 20, right: 60, left: 20, bottom: 30 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis
                             dataKey="rank"
-                            label={{ value: '순위', position: 'insideBottom', offset: -10 }}
-                            style={{ fontSize: 12 }}
+                            label={{ value: '순위', position: 'insideBottom', offset: -15 }}
+                            style={{ fontSize: 11 }}
+                            tick={{ dy: 5 }}
                           />
                           <YAxis
                             yAxisId="left"
                             orientation="left"
                             stroke="#3b82f6"
-                            style={{ fontSize: 12 }}
-                            label={{ value: '클릭수', angle: -90, position: 'insideLeft' }}
+                            style={{ fontSize: 11 }}
+                            label={{ value: '클릭수', angle: -90, position: 'insideLeft', offset: 10 }}
+                            tick={{ dx: -5 }}
                           />
                           <YAxis
                             yAxisId="right"
                             orientation="right"
                             stroke="#10b981"
-                            style={{ fontSize: 12 }}
-                            label={{ value: '비용', angle: 90, position: 'insideRight' }}
+                            style={{ fontSize: 11 }}
+                            label={{ value: '비용', angle: 90, position: 'insideRight', offset: 10 }}
+                            tick={{ dx: 5 }}
                           />
                           <Tooltip
                             formatter={(value: any) => formatNumber(value)}
                             labelFormatter={(label) => `${label}위`}
+                            contentStyle={{ fontSize: 11 }}
                           />
-                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Legend
+                            wrapperStyle={{ fontSize: '9.6px', paddingTop: '10px' }}
+                            formatter={(value: any) => value}
+                          />
                           {reportTab === 'MO' ? (
                             <>
-                              <Bar yAxisId="left" dataKey="totalClicks" fill="#60a5fa" name="Mobile 클릭수" />
+                              <Line
+                                yAxisId="left"
+                                dataKey="totalClicks"
+                                stroke="#3b82f6"
+                                strokeWidth={2}
+                                dot={{ fill: '#3b82f6', r: 4 }}
+                                name="Mobile 클릭수"
+                              />
                               <Bar yAxisId="right" dataKey="totalCost" fill="#34d399" name="Mobile 비용" />
                             </>
                           ) : (
                             <>
-                              <Bar yAxisId="left" dataKey="totalClicks" fill="#2563eb" name="PC 클릭수" />
+                              <Line
+                                yAxisId="left"
+                                dataKey="totalClicks"
+                                stroke="#2563eb"
+                                strokeWidth={2}
+                                dot={{ fill: '#2563eb', r: 4 }}
+                                name="PC 클릭수"
+                              />
                               <Bar yAxisId="right" dataKey="totalCost" fill="#059669" name="PC 비용" />
                             </>
                           )}
-                        </BarChart>
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </div>
                   )}
