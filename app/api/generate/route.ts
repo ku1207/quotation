@@ -5,7 +5,7 @@ import type { AnalysisResult, AIReport } from '@/types';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { analysisResult } = body as { analysisResult?: AnalysisResult };
+    const { analysisResult, device } = body as { analysisResult?: AnalysisResult; device?: string };
 
     if (!analysisResult) {
       return NextResponse.json({ error: '분석 데이터가 제공되지 않았습니다.' }, { status: 400 });
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const prompt = buildPrompt(analysisResult);
+    const prompt = buildPrompt(analysisResult, device || 'All');
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-5.2',
@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
         { role: 'system', content: '당신은 전문 디지털 마케팅 전략가입니다. 네이버 검색광고 데이터를 분석하고 실행 가능한 전략을 제시하세요.' },
         { role: 'user', content: prompt },
       ],
-      temperature: 0.7,
-      max_completion_tokens: 2000,
+      temperature: 0.2,
+      max_completion_tokens: 1200,
     });
 
     const aiResponse = completion.choices?.[0]?.message?.content ?? '';
@@ -38,9 +38,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function buildPrompt(analysis: AnalysisResult): string {
+function buildPrompt(analysis: AnalysisResult, device: string): string {
   const segmentStats = analysis.segmentStats || [];
-  const topKeywords = analysis.topKeywords || [];
+  const keywords = analysis.keywords || [];
+
+  // build device-aware top keywords:
+  let topKeywords: { keyword: string; totalCost: number; avgCPC: number }[] = [];
+  if ((device || 'All') === 'PC') {
+    topKeywords = keywords
+      .filter((k: any) => (k.pc?.[1]?.cost || 0) > 0)
+      .sort((a: any, b: any) => (b.pc?.[1]?.cost || 0) - (a.pc?.[1]?.cost || 0))
+      .slice(0, 10)
+      .map((k: any) => {
+        const cost = k.pc?.[1]?.cost || 0;
+        const clicks = k.pc?.[1]?.clicks || 0;
+        return { keyword: k.keyword, totalCost: cost, avgCPC: clicks > 0 ? cost / clicks : 0 };
+      });
+  } else if ((device || 'All') === 'MO') {
+    topKeywords = keywords
+      .filter((k: any) => (k.mo?.[1]?.cost || 0) > 0)
+      .sort((a: any, b: any) => (b.mo?.[1]?.cost || 0) - (a.mo?.[1]?.cost || 0))
+      .slice(0, 10)
+      .map((k: any) => {
+        const cost = k.mo?.[1]?.cost || 0;
+        const clicks = k.mo?.[1]?.clicks || 0;
+        return { keyword: k.keyword, totalCost: cost, avgCPC: clicks > 0 ? cost / clicks : 0 };
+      });
+  } else {
+    // All: sum PC1 + MO1 and exclude where sum is 0
+    topKeywords = keywords
+      .map((k: any) => {
+        const pcCost = k.pc?.[1]?.cost || 0;
+        const moCost = k.mo?.[1]?.cost || 0;
+        const pcClicks = k.pc?.[1]?.clicks || 0;
+        const moClicks = k.mo?.[1]?.clicks || 0;
+        const totalCost = pcCost + moCost;
+        const totalClicks = pcClicks + moClicks;
+        return { keyword: k.keyword, totalCost, avgCPC: totalClicks > 0 ? totalCost / totalClicks : 0 };
+      })
+      .filter((k) => k.totalCost > 0)
+      .sort((a, b) => b.totalCost - a.totalCost)
+      .slice(0, 10);
+  }
 
   const segmentsText = segmentStats
     .map((s) => {
@@ -51,7 +90,7 @@ function buildPrompt(analysis: AnalysisResult): string {
 
   const topText = topKeywords.slice(0, 10).map((k, i) => `${i + 1}. ${k.keyword} - 1위 비용 ${k.totalCost.toFixed(0)}원, CPC ${k.avgCPC.toFixed(0)}원`).join('\n');
 
-  return `다음은 분석 결과입니다. 세그먼트별 통계와 상위 비용 키워드를 참고하여, 각각의 세그먼트에 대한 인사이트와 3가지 전략(aggressive, efficiency, defensive)을 작성해 주세요. 각 전략의 필드(background, execution, expectedKPI)는 마크다운 형식의 텍스트로 작성해 주세요. 반드시 응답은 JSON으로만 반환해주세요. JSON 내부의 문자열 값은 마크다운 형식이어야 합니다.\n\n세그먼트 통계:\n${segmentsText}\n\nTop 키워드:\n${topText}\n\n응답 예시 구조:\n{\n  "segmentInsights": { "High-Volume": "...", "Efficiency": "...", "Long-tail": "...", "High-Cost": "..." },\n  "strategies": {\n    "aggressive": { "background": "# 배경...", "execution": "# 실행...", "expectedKPI": "# 예상 KPI..." },\n    "efficiency": { "background": "...", "execution": "...", "expectedKPI": "..." },\n    "defensive": { "background": "...", "execution": "...", "expectedKPI": "..." }\n  }\n}`;
+  return `You are a senior digital marketing strategist. Use the provided analysis to generate concise, actionable strategies for device: ${device}.\n\nRequirements:\n- Provide output strictly as PARSABLE JSON only (no surrounding text, no markdown code fences).\n- For each of the three strategies (aggressive, efficiency, defensive) return two fields: "background" (<=200 characters, Korean) and "execution" (Korean). The "execution" must be written exactly as: "각 키워드 세그먼트 별 최적의 순위 및 운영 전략 형태로 작성하십시오."\n- Do not include any other fields.\n\nInput data:\n${segmentsText}\n\nTop keywords:\n${topText}\n\nRequired JSON structure example:\n{\"segmentInsights\": {\"High-Volume\": \"...\", \"Efficiency\": \"...\", \"Long-tail\": \"...\", \"High-Cost\": \"...\"}, \"strategies\": {\"aggressive\": {\"background\": \"...\", \"execution\": \"...\"}, \"efficiency\": {\"background\": \"...\", \"execution\": \"...\"}, \"defensive\": {\"background\": \"...\", \"execution\": \"...\"}}}`;
 }
 
 function parseAIResponse(response: string): AIReport {
@@ -105,17 +144,17 @@ function parseAIResponse(response: string): AIReport {
         aggressive: {
           background: parsed.strategies?.aggressive?.background || defaultReport.strategies.aggressive.background,
           execution: parsed.strategies?.aggressive?.execution || defaultReport.strategies.aggressive.execution,
-          expectedKPI: parsed.strategies?.aggressive?.expectedKPI || defaultReport.strategies.aggressive.expectedKPI,
+          expectedKPI: '',
         },
         efficiency: {
           background: parsed.strategies?.efficiency?.background || defaultReport.strategies.efficiency.background,
           execution: parsed.strategies?.efficiency?.execution || defaultReport.strategies.efficiency.execution,
-          expectedKPI: parsed.strategies?.efficiency?.expectedKPI || defaultReport.strategies.efficiency.expectedKPI,
+          expectedKPI: '',
         },
         defensive: {
           background: parsed.strategies?.defensive?.background || defaultReport.strategies.defensive.background,
           execution: parsed.strategies?.defensive?.execution || defaultReport.strategies.defensive.execution,
-          expectedKPI: parsed.strategies?.defensive?.expectedKPI || defaultReport.strategies.defensive.expectedKPI,
+          expectedKPI: '',
         },
       },
     };

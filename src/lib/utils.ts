@@ -9,12 +9,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * 숫자를 한국 원화 형식으로 포맷 (예: 1,234,567원)
+ * 숫자를 한국 원화 형식으로 포맷 (예: 1,234,567)
  */
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('ko-KR', {
-    style: 'currency',
-    currency: 'KRW',
+    style: 'decimal',
     maximumFractionDigits: 0,
   }).format(value);
 }
@@ -77,7 +76,7 @@ export function getSegmentLabel(segment: string): string {
   const labels: Record<string, string> = {
     'High-Volume': '고 클릭&CPC',
     'Efficiency': '고 클릭&저 CPC',
-    'Long-tail': '저 클릭&CPC',
+    'Long-tail': '저 클릭&저 CPC',
     'High-Cost': '저 클릭&고 CPC',
   };
   return labels[segment] || segment;

@@ -38,6 +38,9 @@ export interface SegmentCriteria {
   // 기존(합산) 기준 유지(하위 호환)
   medianClicks: number;
   medianCPC: number;
+  // 전체(ALL) 기준: PC1 + MO1 합산 기반 평균
+  overallAvgClicks?: number;
+  overallAvgCPC?: number;
   // 디바이스별 기준 (요청대로 PC/MO 분리)
   pcAvgClicks?: number; // PC 1위 클릭수 평균 (mean)
   moAvgClicks?: number; // MO 1위 클릭수 평균 (mean)

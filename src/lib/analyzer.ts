@@ -85,12 +85,21 @@ function buildColumnMap(header1: any[], header2: any[]): Map<string, number> {
     if (!deviceType || rank === null) continue;
 
     // Map Korean metric names to internal metric keys
+    // CRITICAL: Skip rate/percentage columns first (클릭율, CTR, etc.)
     let metricType = '';
     const m = metricText.replace(/\s+/g, '').toLowerCase();
-    if (m.includes('예상노출수') || m.includes('노출수') || m.includes('노출')) metricType = 'impressions';
-    else if (m.includes('예상클릭수') || m.includes('클릭수') || m.includes('클릭')) metricType = 'clicks';
-    else if (m.includes('예상광고비용') || m.includes('광고비용') || m.includes('비용')) metricType = 'cost';
+
+    // Skip rate/percentage metrics that contain '율'
+    if (m.includes('율') || m.includes('률') || m.includes('ctr')) {
+      continue; // Skip CTR, click rate, and other rate metrics
+    }
+
+    // Check specific patterns - order matters to avoid false matches
+    if (m.includes('예상노출수') || m.includes('노출수')) metricType = 'impressions';
+    else if (m.includes('예상클릭수') || m.includes('클릭수')) metricType = 'clicks';
+    else if (m.includes('예상광고비용') || m.includes('광고비용') || m.includes('예상비용')) metricType = 'cost';
     else if (m.includes('예상cpc') || m.includes('cpc')) metricType = 'cpc';
+    // Fallback patterns removed to prevent false matches
 
     if (deviceType && metricType) {
       const key = `${deviceType}_${rank}_${metricType}`;
@@ -194,22 +203,24 @@ export function classifySegments(keywords: KeywordData[]): {
   // 또한 PC / MO를 분리하여 디바이스별 세그먼트를 생성
 
   // PC 1위 집계
-  const pcClicksArr = keywords.map((k) => k.pc[1]?.clicks || 0);
-  const pcTotalClicks = pcClicksArr.reduce((a, b) => a + b, 0);
-  const pcNonZeroCount = pcClicksArr.filter(v => v > 0).length;
-  const pcAvgClicks = pcNonZeroCount > 0 ? pcTotalClicks / pcNonZeroCount : 0;
-  const pcTotalCost = keywords.reduce((acc, k) => acc + (k.pc[1]?.cost || 0), 0);
+  const pcTotalClicks = keywords.reduce((sum, k) => sum + k.pcClicks, 0);
+  const pcTotalCost = keywords.reduce((sum, k) => sum + k.pcCost, 0);
+  const pcAvgClicks = keywords.length > 0 ? pcTotalClicks / keywords.length : 0;
   const pcCPC = pcTotalClicks > 0 ? Math.floor(pcTotalCost / pcTotalClicks) : 0;
 
   // MO 1위 집계
-  const moClicksArr = keywords.map((k) => k.mo[1]?.clicks || 0);
-  const moTotalClicks = moClicksArr.reduce((a, b) => a + b, 0);
-  const moNonZeroCount = moClicksArr.filter(v => v > 0).length;
-  const moAvgClicks = moNonZeroCount > 0 ? moTotalClicks / moNonZeroCount : 0;
-  const moTotalCost = keywords.reduce((acc, k) => acc + (k.mo[1]?.cost || 0), 0);
+  const moTotalClicks = keywords.reduce((sum, k) => sum + k.moClicks, 0);
+  const moTotalCost = keywords.reduce((sum, k) => sum + k.moCost, 0);
+  const moAvgClicks = keywords.length > 0 ? moTotalClicks / keywords.length : 0;
   const moCPC = moTotalClicks > 0 ? Math.floor(moTotalCost / moTotalClicks) : 0;
 
-  // 기존 합산(하위호환) 기준: PC1 + MO1 기반 평균/비교(기존 로직 유지)
+  // 전체(ALL) 기준: PC 1위 + MO 1위 합산으로 평균 클릭 및 평균 CPC 계산
+  const totalClicksRank1 = keywords.reduce((acc, k) => acc + ((k.pc[1]?.clicks || 0) + (k.mo[1]?.clicks || 0)), 0);
+  const totalCostRank1 = keywords.reduce((acc, k) => acc + ((k.pc[1]?.cost || 0) + (k.mo[1]?.cost || 0)), 0);
+  const overallAvgClicks = keywords.length > 0 ? totalClicksRank1 / keywords.length : 0;
+  const overallAvgCPC = totalClicksRank1 > 0 ? Math.floor(totalCostRank1 / totalClicksRank1) : 0;
+
+  // For backward compatibility, also provide medians computed from (PC1+MO1)
   const clicksRank1 = keywords.map((k) => (k.pc[1]?.clicks || 0) + (k.mo[1]?.clicks || 0));
   const cpcsRank1 = keywords.map((k) => {
     const clicks = (k.pc[1]?.clicks || 0) + (k.mo[1]?.clicks || 0);
@@ -225,7 +236,8 @@ export function classifySegments(keywords: KeywordData[]): {
     const segMo = determineSegmentPerDevice(keyword, moAvgClicks, moCPC, 'MO');
     return {
       ...keyword,
-      segment: determineSegment(keyword, medianClicks, medianCPC), // 기존 전체 기준
+      // 전체 분류는 PC1+MO1 합산 기반 평균(전체 평균 클릭수 / 전체 평균 CPC)을 사용
+      segment: determineSegment(keyword, overallAvgClicks, overallAvgCPC),
       segmentPc: segPc,
       segmentMo: segMo,
     } as KeywordData;
@@ -234,8 +246,11 @@ export function classifySegments(keywords: KeywordData[]): {
   return {
     keywords: classified,
     criteria: {
+      // 전체(ALL) 기준: PC1+MO1 합산 기반 평균
       medianClicks,
       medianCPC,
+      overallAvgClicks,
+      overallAvgCPC,
       pcAvgClicks,
       moAvgClicks,
       pcCPC,
@@ -249,11 +264,11 @@ export function classifySegments(keywords: KeywordData[]): {
  */
 function determineSegment(
   keyword: KeywordData,
-  medianClicks: number,
-  medianCPC: number
+  avgClicks: number,
+  avgCPC: number
 ): Segment {
-  const highClicks = keyword.totalClicks > medianClicks;
-  const highCPC = keyword.avgCPC > medianCPC;
+  const highClicks = keyword.totalClicks > avgClicks;
+  const highCPC = keyword.avgCPC > avgCPC;
 
   if (highClicks && highCPC) return 'High-Volume';
   if (highClicks && !highCPC) return 'Efficiency';
@@ -292,13 +307,11 @@ export function calculateSegmentStats(keywords: KeywordData[]): SegmentStats[] {
   const totalBudget = sum(keywords.map((k) => k.totalCost));
 
   return segments.map((segment) => {
-    // Use device-specific segmentation when aggregating simulations
-    const pcKeywords = keywords.filter((k) => (k.segmentPc || k.segment) === segment);
-    const moKeywords = keywords.filter((k) => (k.segmentMo || k.segment) === segment);
-    const segmentKeywordsUnion = keywords.filter((k) => (k.segmentPc || k.segment) === segment || (k.segmentMo || k.segment) === segment);
-    // for backward compatibility and used in UI counts
-    const segmentKeywords = segmentKeywordsUnion;
-    const segmentBudget = sum(segmentKeywordsUnion.map((k) => k.totalCost));
+    // Use overall `k.segment` for grouping so each keyword belongs to exactly one segment
+    const segmentKeywords = keywords.filter((k) => k.segment === segment);
+    const pcKeywords = segmentKeywords; // for PC simulations, use the same set but read PC rank data
+    const moKeywords = segmentKeywords; // for MO simulations, use the same set but read MO rank data
+    const segmentBudget = sum(segmentKeywords.map((k) => k.totalCost));
 
     // PC 시뮬레이션 (1~10위)
     const pcRanks = Array.from({ length: 10 }, (_, i) => i + 1);

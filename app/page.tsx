@@ -171,7 +171,7 @@ export default function Home() {
             </li>
             <li className="flex items-start">
               <span className="text-blue-600 mr-2">•</span>
-              <span>PC 1~15위, MO 1~5위 데이터 포함</span>
+              <span>PC 1~10위, MO 1~5위 데이터 포함</span>
             </li>
           </ul>
         </div>
